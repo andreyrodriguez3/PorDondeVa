@@ -1,0 +1,418 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [citext]
+}
+
+// -- Enums ------------------------------------------------------------------
+
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum DomainKind {
+  PLATFORM_SUBDOMAIN
+  CUSTOM
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  COMPANY_ADMIN
+  OPERATOR
+  DRIVER
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum DriverStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BusStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  RETIRED
+}
+
+enum RouteStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum VariantDirection {
+  OUTBOUND
+  INBOUND
+}
+
+enum TripStatus {
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum TripEndReason {
+  DRIVER
+  ADMIN
+  AUTO_TIMEOUT
+}
+
+enum IncidentCategory {
+  VEHICLE
+  TRAFFIC
+  VEHICLE_CHANGE
+  OTHER
+}
+
+// -- Platform / tenancy -------------------------------------------------------
+
+model Company {
+  id                    String        @id @default(uuid())
+  name                  String
+  slug                  String        @unique @db.Citext
+  timezone              String        @default("America/Costa_Rica")
+  logoPath              String?       @map("logo_path")
+  brandPrimaryColor     String?       @map("brand_primary_color")
+  status                CompanyStatus @default(ACTIVE)
+  liveThresholdSeconds  Int           @default(30) @map("live_threshold_seconds")
+  staleThresholdSeconds Int           @default(180) @map("stale_threshold_seconds")
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  domains        CompanyDomain[]
+  users          User[]
+  driverProfiles DriverProfile[]
+  buses          Bus[]
+  routes         Route[]
+  routeVariants  RouteVariant[]
+  stops          Stop[]
+  variantStops   RouteVariantStop[]
+  schedules      Schedule[]
+  trips          Trip[]
+  locationPoints LocationPoint[]
+  liveStates     TripLiveState[]
+  incidents      TripIncident[]
+  auditLogs      AuditLog[]
+
+  @@map("companies")
+}
+
+model CompanyDomain {
+  id         String     @id @default(uuid())
+  companyId  String     @map("company_id")
+  hostname   String     @unique @db.Citext
+  kind       DomainKind
+  isPrimary  Boolean    @default(false) @map("is_primary")
+  verifiedAt DateTime?  @map("verified_at") @db.Timestamptz(3)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([hostname])
+  @@map("company_domains")
+}
+
+// -- Users / auth -------------------------------------------------------------
+
+model User {
+  id                 String     @id @default(uuid())
+  companyId          String?    @map("company_id")
+  email              String?    @unique @db.Citext
+  username           String?    @db.Citext
+  passwordHash       String     @map("password_hash")
+  mustChangePassword Boolean    @default(false) @map("must_change_password")
+  name               String
+  role               UserRole
+  status             UserStatus @default(ACTIVE)
+  lastLoginAt        DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company       Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  driverProfile DriverProfile?
+  refreshTokens RefreshToken[]
+  trips         Trip[]
+  incidents     TripIncident[]
+  auditLogs     AuditLog[]
+
+  @@unique([companyId, username])
+  @@index([companyId, role])
+  @@map("users")
+}
+
+model DriverProfile {
+  userId        String       @id @map("user_id")
+  companyId     String       @map("company_id")
+  phone         String?
+  licenseNumber String?      @map("license_number")
+  defaultBusId  String?      @map("default_bus_id")
+  status        DriverStatus @default(ACTIVE)
+
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  defaultBus Bus?    @relation(fields: [defaultBusId], references: [id])
+
+  @@index([companyId, status])
+  @@map("driver_profiles")
+}
+
+model RefreshToken {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  tokenHash   String    @unique @map("token_hash")
+  deviceLabel String?   @map("device_label")
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// -- Fleet ----------------------------------------------------------------
+
+model Bus {
+  id           String    @id @default(uuid())
+  companyId    String    @map("company_id")
+  label        String
+  licensePlate String?   @map("license_plate")
+  status       BusStatus @default(ACTIVE)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  driverProfiles DriverProfile[]
+  trips          Trip[]
+  liveStates     TripLiveState[]
+
+  @@unique([companyId, label])
+  @@map("buses")
+}
+
+// -- Routes -----------------------------------------------------------------
+
+model Route {
+  id               String      @id @default(uuid())
+  companyId        String      @map("company_id")
+  name             String
+  originLabel      String      @map("origin_label")
+  destinationLabel String      @map("destination_label")
+  publicSlug       String      @map("public_slug") @db.Citext
+  status           RouteStatus @default(ACTIVE)
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company    Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  variants   RouteVariant[]
+  trips      Trip[]
+  liveStates TripLiveState[]
+
+  @@unique([companyId, publicSlug])
+  @@map("routes")
+}
+
+model RouteVariant {
+  id        String           @id @default(uuid())
+  companyId String           @map("company_id")
+  routeId   String           @map("route_id")
+  name      String
+  direction VariantDirection
+  headsign  String
+  geometry  Json
+  isDefault Boolean          @default(false) @map("is_default")
+  status    RouteStatus      @default(ACTIVE)
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company    Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  route      Route              @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  stops      RouteVariantStop[]
+  schedules  Schedule[]
+  trips      Trip[]
+  liveStates TripLiveState[]
+
+  @@index([routeId, status])
+  @@map("route_variants")
+}
+
+model Stop {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  name      String
+  latitude  Float
+  longitude Float
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  variantStops RouteVariantStop[]
+
+  @@index([companyId])
+  @@map("stops")
+}
+
+model RouteVariantStop {
+  id             String @id @default(uuid())
+  companyId      String @map("company_id")
+  routeVariantId String @map("route_variant_id")
+  stopId         String @map("stop_id")
+  sequence       Int
+
+  company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  variant RouteVariant @relation(fields: [routeVariantId], references: [id], onDelete: Cascade)
+  stop    Stop         @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
+  @@unique([routeVariantId, stopId])
+  @@index([routeVariantId, sequence])
+  @@map("route_variant_stops")
+}
+
+model Schedule {
+  id             String   @id @default(uuid())
+  companyId      String   @map("company_id")
+  routeVariantId String   @map("route_variant_id")
+  departureTime  DateTime @map("departure_time") @db.Time()
+  daysOfWeek     Int[]    @map("days_of_week")
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  variant RouteVariant @relation(fields: [routeVariantId], references: [id], onDelete: Cascade)
+  trips   Trip[]
+
+  @@index([routeVariantId, active])
+  @@map("schedules")
+}
+
+// -- Trips / tracking ---------------------------------------------------------
+
+model Trip {
+  id                   String         @id @default(uuid())
+  companyId            String         @map("company_id")
+  routeId              String         @map("route_id")
+  routeVariantId       String         @map("route_variant_id")
+  scheduleId           String?        @map("schedule_id")
+  busId                String         @map("bus_id")
+  driverUserId         String         @map("driver_user_id")
+  status               TripStatus     @default(ACTIVE)
+  scheduledDepartureAt DateTime?      @map("scheduled_departure_at") @db.Timestamptz(3)
+  startedAt            DateTime       @default(now()) @map("started_at") @db.Timestamptz(3)
+  endedAt              DateTime?      @map("ended_at") @db.Timestamptz(3)
+  endReason            TripEndReason? @map("end_reason")
+  rejectedPointCount   Int            @default(0) @map("rejected_point_count")
+  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company  Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  route    Route        @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  variant  RouteVariant @relation(fields: [routeVariantId], references: [id], onDelete: Cascade)
+  schedule Schedule?    @relation(fields: [scheduleId], references: [id])
+  bus      Bus          @relation(fields: [busId], references: [id], onDelete: Cascade)
+  driver   User         @relation(fields: [driverUserId], references: [id], onDelete: Cascade)
+
+  locationPoints LocationPoint[]
+  liveState      TripLiveState?
+  incidents      TripIncident[]
+
+  @@index([companyId, status])
+  @@index([routeVariantId, status])
+  @@index([companyId, startedAt(sort: Desc)])
+  @@index([driverUserId, startedAt(sort: Desc)])
+  @@map("trips")
+}
+
+model LocationPoint {
+  id              BigInt   @id @default(autoincrement())
+  tripId          String   @map("trip_id")
+  companyId       String   @map("company_id")
+  clientPointId   String   @map("client_point_id")
+  latitude        Float
+  longitude       Float
+  accuracyM       Float?   @map("accuracy_m")
+  speedMps        Float?   @map("speed_mps")
+  bearingDeg      Float?   @map("bearing_deg")
+  deviceTimestamp DateTime @map("device_timestamp") @db.Timestamptz(3)
+  serverTimestamp DateTime @default(now()) @map("server_timestamp") @db.Timestamptz(3)
+
+  trip    Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, clientPointId])
+  @@index([tripId, deviceTimestamp])
+  @@index([serverTimestamp])
+  @@map("location_points")
+}
+
+model TripLiveState {
+  tripId          String   @id @map("trip_id")
+  companyId       String   @map("company_id")
+  routeId         String   @map("route_id")
+  routeVariantId  String   @map("route_variant_id")
+  busId           String   @map("bus_id")
+  latitude        Float
+  longitude       Float
+  accuracyM       Float?   @map("accuracy_m")
+  speedMps        Float?   @map("speed_mps")
+  bearingDeg      Float?   @map("bearing_deg")
+  deviceTimestamp DateTime @map("device_timestamp") @db.Timestamptz(3)
+  serverTimestamp DateTime @map("server_timestamp") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  trip    Trip         @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  route   Route        @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  variant RouteVariant @relation(fields: [routeVariantId], references: [id], onDelete: Cascade)
+  bus     Bus          @relation(fields: [busId], references: [id], onDelete: Cascade)
+
+  @@index([routeVariantId])
+  @@index([companyId])
+  @@map("trip_live_states")
+}
+
+model TripIncident {
+  id               String           @id @default(uuid())
+  companyId        String           @map("company_id")
+  tripId           String           @map("trip_id")
+  reportedByUserId String           @map("reported_by_user_id")
+  category         IncidentCategory
+  note             String?
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  trip       Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  reportedBy User    @relation(fields: [reportedByUserId], references: [id], onDelete: Cascade)
+
+  @@map("trip_incidents")
+}
+
+model AuditLog {
+  id          BigInt   @id @default(autoincrement())
+  companyId   String?  @map("company_id")
+  actorUserId String?  @map("actor_user_id")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  metadata    Json?
+  ip          String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  actor   User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}

@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tubus
+          POSTGRES_PASSWORD: tubus
+          POSTGRES_DB: tubus_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tubus -d tubus_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://tubus:tubus@localhost:5432/tubus_test?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-not-for-production-use
+      JWT_REFRESH_SECRET: ci-refresh-secret-not-for-production-use
+      ACCESS_TOKEN_TTL: 15m
+      REFRESH_TOKEN_TTL: 30d
+      PLATFORM_DOMAIN: tubus.example
+      ADMIN_HOST: admin.tubus.example
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build contracts
+        run: pnpm build:contracts
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Create required Postgres extensions
+        run: psql "$DATABASE_URL" -c 'CREATE EXTENSION IF NOT EXISTS citext;'
+
+      - name: Apply database migrations
+        run: pnpm --filter api exec prisma migrate deploy
+
+      - name: Unit test
+        run: pnpm test
+
+      - name: Tenancy conformance suite
+        run: pnpm --filter api run test:tenancy
+
+      - name: End-to-end test
+        run: pnpm --filter api run test:e2e

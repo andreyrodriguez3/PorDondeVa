@@ -1,0 +1,36 @@
+{
+  "name": "tubus",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "pnpm -r --if-present run test",
+    "build": "pnpm -r --if-present run build",
+    "db:migrate": "pnpm --filter api exec prisma migrate dev",
+    "db:migrate:create": "pnpm --filter api exec prisma migrate dev --create-only",
+    "db:seed": "pnpm --filter api exec prisma db seed",
+    "db:studio": "pnpm --filter api exec prisma studio",
+    "db:reset": "pnpm --filter api exec prisma migrate reset",
+    "simulate": "pnpm --filter @tubus/simulator start --",
+    "build:contracts": "pnpm --filter @tubus/contracts run build",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^9.1.0",
+    "husky": "^9.1.7",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3"
+  }
+}

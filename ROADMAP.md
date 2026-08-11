@@ -1,7 +1,7 @@
 # TuBus — MVP Implementation Roadmap
 
 Derived from [`SPECS.md`](SPECS.md) (read in full). Section references of the form §N point to it. Code conventions are governed by [`CODESTYLE.md`](CODESTYLE.md).
-Scope: a minimal but production-quality MVP satisfying §43 *Definition of Done*, deployable to a single VPS.
+Scope: a minimal but production-quality MVP satisfying §43 _Definition of Done_, deployable to a single VPS.
 
 Guiding constraint applied throughout: **no microservices, no Kubernetes, no AWS, no Redis, no message broker, no third-party paid infrastructure.** One Postgres, one NestJS process, one Next.js process, one reverse proxy, one Android app.
 
@@ -9,18 +9,18 @@ Guiding constraint applied throughout: **no microservices, no Kubernetes, no AWS
 
 ## 0. Executive summary
 
-| Item | Decision |
-|---|---|
-| Repository | Single Git monorepo, pnpm workspaces + a sibling Gradle project for Android |
-| Backend | NestJS (modular monolith), TypeScript, Prisma, PostgreSQL 16 |
-| Real-time | Socket.IO gateway inside the same NestJS process (in-memory rooms) |
-| Web | Next.js App Router (passenger + admin in one app, separated by host and route group) |
-| Map | MapLibre GL JS, tile style URL injected by env var |
-| Android | Kotlin, Jetpack Compose, Hilt, Room, WorkManager, FusedLocationProvider, foreground service |
-| Live state | A single Postgres row per active trip (`trip_live_states`), upserted on ingest |
-| Tenancy | Shared DB, `company_id` on every tenant entity, explicit scoping + a fail-closed Prisma guard |
-| TLS / custom domains | Caddy with on-demand TLS + an `ask` endpoint — no DNS automation needed |
-| Estimated effort | ~41–56 developer-days for one full-stack developer (see §12) |
+| Item                 | Decision                                                                                      |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| Repository           | Single Git monorepo, pnpm workspaces + a sibling Gradle project for Android                   |
+| Backend              | NestJS (modular monolith), TypeScript, Prisma, PostgreSQL 16                                  |
+| Real-time            | Socket.IO gateway inside the same NestJS process (in-memory rooms)                            |
+| Web                  | Next.js App Router (passenger + admin in one app, separated by host and route group)          |
+| Map                  | MapLibre GL JS, tile style URL injected by env var                                            |
+| Android              | Kotlin, Jetpack Compose, Hilt, Room, WorkManager, FusedLocationProvider, foreground service   |
+| Live state           | A single Postgres row per active trip (`trip_live_states`), upserted on ingest                |
+| Tenancy              | Shared DB, `company_id` on every tenant entity, explicit scoping + a fail-closed Prisma guard |
+| TLS / custom domains | Caddy with on-demand TLS + an `ask` endpoint — no DNS automation needed                       |
+| Estimated effort     | ~41–56 developer-days for one full-stack developer (see §12)                                  |
 
 The single highest-risk item is the end-to-end pipeline (device → API → DB → WebSocket → map). It is therefore built **first**, driven by the GPS simulator (§29), before any UI polish and before Android exists.
 
@@ -34,6 +34,7 @@ The single highest-risk item is the end-to-end pipeline (device → API → DB �
 ### 1.1 Decisions taken (with rationale)
 
 **D1 — Monorepo, not multi-repo.**
+
 ```
 tubus/
   apps/
@@ -49,6 +50,7 @@ tubus/
   docker-compose.yml
   docker-compose.prod.yml
 ```
+
 `packages/contracts` holds Zod schemas for every request/response DTO. The API validates with them; the web infers types from them. This gives compile-time contract safety without adding OpenAPI codegen. Android is a separate build and consumes the same contract via hand-written Kotlin data classes plus contract tests (§9.3).
 
 **D2 — Modular monolith, one process.**
@@ -61,11 +63,13 @@ Best-in-class migrations, first-class NestJS integration, good enough raw-SQL es
 The MVP does not do map matching, snapping, or ETA. Route geometry is a GeoJSON `LineString` in a `jsonb` column, drawn verbatim by MapLibre. Stops are `double precision` lat/lng columns. Adding PostGIS later is `CREATE EXTENSION postgis;` plus a generated `geometry` column backfilled from the existing jsonb — no data migration, no model rewrite. Postgres data directories are compatible across the `postgres:16` and `postgis/postgis:16` images, so the image swap is a one-line change if it is ever needed.
 
 **D5 — The admin dashboard lives on one fixed host; company hosts serve passengers only.**
+
 ```
 admin.tubus.example          → admin dashboard (auth, cookies, CSRF)
 tuanrl.tubus.example         → passenger surface only
 rutas.tuanrl.com             → passenger surface only
 ```
+
 Reason: authentication cookies must never be set on a hostname the customer controls (DNS can be repointed), cookie scoping across wildcard + arbitrary custom domains is a security minefield, and CSRF/CORS become trivial with one origin. The spec does not state where the dashboard lives — this is a decision, flagged again in §2 as **A1**.
 
 **D6 — Route variants are directional.**
@@ -75,18 +79,20 @@ A "round trip" is two variants (`OUTBOUND`, `INBOUND`), each with its own stop s
 One `users` table with a `role` column; a `driver_profiles` table (1:1) carries phone, license, status, and default bus assignment. One password hasher, one token issuer, one revocation path. §16's "authentication credentials" on the driver entity is satisfied without a second auth stack.
 
 **D8 — Location ingestion is a batched, idempotent REST endpoint.**
+
 ```
 POST /api/v1/driver/trips/:tripId/locations
 { "points": [ { "clientPointId": "<uuid>", "lat": …, "lng": …, "accuracyM": …,
                 "speedMps": …, "bearingDeg": …, "deviceTimestamp": "…Z" }, … ] }
 ```
+
 One endpoint serves both the live single-point case and the offline flush (§9). Deduplication is a `UNIQUE (trip_id, client_point_id)` index plus `INSERT … ON CONFLICT DO NOTHING`, so a retried request after a lost response is a no-op. Response returns per-point accepted/duplicate/rejected so the client can safely delete acknowledged rows from its queue. The driver uplink is REST, not WebSocket — REST is trivially retryable, works with WorkManager, and survives process death.
 
 **D9 — Live state is a Postgres table, and `connection_status` is derived at read time, never stored.**
 §19 lists `connection_status` as a stored field. Stored status is wrong by construction: a bus that stops transmitting never writes a row again, so a stored status would remain `LIVE` forever. `trip_live_states` stores the latest position and timestamps; status is computed per request from `now() − device_timestamp` against the company's thresholds.
 
 **D10 — Live status is derived from `device_timestamp`, not `server_timestamp`.**
-This is the offline-correctness decision. If a bus is dark for 10 minutes and then flushes its queue, `server_timestamp` is *now* for every flushed point — using it would display a 10-minute-old position as `LIVE`. Using the newest `device_timestamp` yields the honest answer, and correctly flips back to `LIVE` the moment fresh positions land. `server_timestamp` is retained for operator diagnostics ("received 240 points in one batch after a 10-minute gap").
+This is the offline-correctness decision. If a bus is dark for 10 minutes and then flushes its queue, `server_timestamp` is _now_ for every flushed point — using it would display a 10-minute-old position as `LIVE`. Using the newest `device_timestamp` yields the honest answer, and correctly flips back to `LIVE` the moment fresh positions land. `server_timestamp` is retained for operator diagnostics ("received 240 points in one batch after a 10-minute gap").
 
 **D11 — The live state only advances on newer device timestamps.**
 The upsert is guarded: `WHERE excluded.device_timestamp > trip_live_states.device_timestamp`. Without this, an offline flush containing older points would drag the marker backwards.
@@ -99,18 +105,19 @@ The marker tweens from the previously rendered position to the newly received on
 
 **D14 — Tenant isolation: explicit scoping + a fail-closed runtime guard + a conformance test suite.**
 Three layers:
+
 1. Every service method that touches a tenant entity takes `companyId` as an explicit parameter. No repository reads it from ambient request state.
 2. A Prisma client extension intercepts every query against a tenant-scoped model and **throws** if no `companyId` appears in the `where` clause. It does not silently inject one — silent injection hides bugs; throwing surfaces them in development and in tests.
 3. A parametrized integration test enumerates every tenant-scoped endpoint and asserts that Company A's token receives **404** (not 403 — 403 leaks existence) for Company B's resources.
-Postgres RLS was considered and rejected for the MVP: it requires every request to run inside a transaction with `SET LOCAL`, which fights Prisma's pooling and adds latency to the hot ingest path for a guarantee layers 1–3 already provide.
+   Postgres RLS was considered and rejected for the MVP: it requires every request to run inside a transaction with `SET LOCAL`, which fights Prisma's pooling and adds latency to the hot ingest path for a guarantee layers 1–3 already provide.
 
-*Known limits of layer 2, stated so it does not create false confidence:* the extension cannot inspect nested writes, and it cannot see the two raw-SQL statements on the ingest path (§4.2), which are scoped by hand and covered by tests instead. Layer 2 catches the common mistake — a forgotten `where` on a normal query — and nothing more. Layer 3 is the actual guarantee.
+_Known limits of layer 2, stated so it does not create false confidence:_ the extension cannot inspect nested writes, and it cannot see the two raw-SQL statements on the ingest path (§4.2), which are scoped by hand and covered by tests instead. Layer 2 catches the common mistake — a forgotten `where` on a normal query — and nothing more. Layer 3 is the actual guarantee.
 
 **D15 — Emails are globally unique.**
 Scoping login by company would require the user to disambiguate at the login screen (there is no tenant in the admin host). Global uniqueness removes that entire class of UX and account-takeover bugs. Consequence: one human cannot be an admin at two companies — acceptable for the MVP, and the migration path (a `company_memberships` join table) is additive.
 
 **D16 — Trips are created when the driver starts one; there is no nightly trip-generation job.**
-The driver picks (or is auto-assigned) bus + route variant, and the backend optionally links the nearest schedule departure within a window (default ±45 min) to populate `scheduled_departure_at`. This keeps the trip lifecycle to one state machine with no background generator. Consequence: the admin dashboard shows *actual* trips, not "expected but not started" trips. Flagged as **A6**.
+The driver picks (or is auto-assigned) bus + route variant, and the backend optionally links the nearest schedule departure within a window (default ±45 min) to populate `scheduled_departure_at`. This keeps the trip lifecycle to one state machine with no background generator. Consequence: the admin dashboard shows _actual_ trips, not "expected but not started" trips. Flagged as **A6**.
 
 **D17 — Caddy with on-demand TLS.**
 Custom domains (§4) need HTTPS without DNS automation. Caddy's `on_demand_tls` with an `ask` endpoint that calls `GET /api/v1/public/domains/allowed?domain=…` issues a certificate only for hostnames present in `company_domains` and marked verified. This also covers `*.tubus.example` per-subdomain, so **no wildcard certificate and no DNS provider API token are required**. Caddy replaces nginx+certbot and is one container with a ~15-line config.
@@ -135,31 +142,31 @@ Redis, any queue/broker, PostGIS, tile self-hosting, horizontal scaling, ETA, ma
 
 Ordered by how much they block implementation. A19–A23 were added by the revision-2 review; A11, A13 and A18 are now resolved.
 
-| # | Issue | Where | Resolution proposed | Needs your input? |
-|---|---|---|---|---|
-| **A1** | The spec never says where the admin dashboard is served from. Serving it on company/custom domains would place auth cookies on customer-controlled hostnames. | §4, §24, §41 | Admin on a single fixed host (`admin.tubus.example`); company + custom hosts serve passengers only. | **Yes** — product decision |
-| **A2** | **Direct contradiction.** §13 says a stop has `route_variant_id` (stop belongs to one variant) *and* "a stop may exist in multiple route variants". | §13 | Split into `stops` (company-owned physical place: name, lat, lng) and `route_variant_stops` (join carrying `sequence`). Satisfies both readings; matches the GTFS mental model. | No — resolved |
-| **A3** | §5 demands interpolated movement; §21 forbids implying precision the GPS does not have. | §5 vs §21 | D13: interpolate between known fixes only, never extrapolate; freeze on stale; render an accuracy circle when accuracy is poor. | No — resolved |
-| **A4** | Live-status thresholds are specified but the reference clock is not. Using server time makes an offline flush look live. | §19, §20 | D10: derive from newest `device_timestamp`. | No — resolved |
-| **A5** | Two vocabularies for the same concept: §5 says live / recently updated / stale / unavailable; §20 says LIVE / STALE / OFFLINE / COMPLETED. | §5 vs §20 | Canonical enum = §20. UI copy maps onto it (`LIVE`→"En vivo", `STALE`→"Actualizado hace 2 min", `OFFLINE`→"Sin señal desde hace 5 min"). | No — resolved |
-| **A6** | §17 lists Schedule as part of a trip, but the DoD has the driver simply starting a trip. Are trips pre-generated from schedules? | §14, §17, §43 | D16: `schedule_id` nullable, trips created on start, nearest departure auto-linked. | Confirm |
-| **A7** | §24 defines `SUPER_ADMIN`, which by definition crosses the tenant boundary that §4 declares inviolable. | §4 vs §24 | SUPER_ADMIN is a platform user (`company_id IS NULL`) restricted in the MVP to company lifecycle + domain management. It **cannot** read operational data (trips, locations, drivers) without an explicit, time-boxed, audit-logged impersonation grant — which is out of MVP scope. | Confirm |
-| **A8** | §14 says schedules belong to "the company and route/route variant as appropriate" — ambiguous attachment point. | §14 | Attach to `route_variant`. A departure follows a physical path; a route-level schedule would be undefined when the route has two variants. | Confirm |
-| **A9** | §16 says drivers should not have to pick arbitrary buses "if the company has configured an assignment", but no assignment model is specified. | §6, §16, §24 | MVP: `driver_profiles.default_bus_id`, pre-selected in the app, overridable at trip start (buses break down). A dated `bus_assignments` table is deferred. | Confirm |
-| **A10** | **No timezone anywhere in the spec**, yet schedules are wall-clock times and the target market is Costa Rica. | §14 | `companies.timezone` (default `America/Costa_Rica`). Schedules store `time` + `days_of_week`; all resolution to instants happens in the company timezone. All other timestamps are `timestamptz` in UTC. | No — resolved |
-| **A11** | **Passenger UI language is never stated.** The spec is English; every example is Spanish (San José, Grecia, Naranjo). | §5, §23 | **Resolved by `CODESTYLE.md`:** code, identifiers, filenames and technical docs in English; user-facing passenger/company text may be Spanish. Ship es-CR for passenger, driver and admin UI, with all copy in one `lib/copy.ts` dictionary — no i18n framework. | Resolved |
-| **A12** | §27 requires "no paid third-party infrastructure", but MapLibre needs a tile source, and OSM's public tile servers forbid production application use. | §27 vs §28 | `NEXT_PUBLIC_MAP_STYLE_URL` env var. Dev default: OSM raster (acceptable at dev volume). Production: MapTiler/Stadia/Protomaps free tier, or self-hosted `pmtiles` for Costa Rica (~200 MB, static file, zero recurring cost). Decide before launch, not before coding. | **Yes** — before production |
-| **A13** | §37 requires the project to follow `CODESTYLE.md`. | §37 | **Resolved:** [`CODESTYLE.md`](CODESTYLE.md) now exists and is authoritative. Phase 0 adds only the mechanical enforcement (ESLint/Prettier config, commitlint) — it does not restate the rules. | Resolved |
-| **A14** | §32 requires configurable retention but gives no default. | §32 | `LOCATION_RETENTION_DAYS=90` for raw points; trips/live-state kept indefinitely. Nightly job deletes in bounded batches. | Confirm number |
-| **A15** | Nothing defines what happens when a driver forgets to end a trip. Trips would stay `ACTIVE` forever and appear on the passenger map. | §17, §20 | Sweeper job: a trip with no new points for `TRIP_AUTO_END_MINUTES` (default 90) is auto-completed with `end_reason = AUTO_TIMEOUT`, and admins may end a trip manually. | Confirm |
-| **A16** | §24 says "assign" for buses and drivers without defining the semantics. | §24 | Interpreted as: assign a default bus to a driver (A9), and assign a driver+bus to a trip at start. No standing shift-roster model in the MVP. | Confirm |
-| **A17** | §33 targets "dozens of buses" while §10 mandates WebSockets; a single in-memory-room process is implied but never stated as a constraint. | §10, §33 | Stated explicitly as D2, with the documented (unbuilt) Redis-adapter path. | No — resolved |
-| **A18** | The specification filename did not match the name used to reference it. | — | **Resolved:** the file is now `SPECS.md`, and `README.md` / `ROADMAP.md` link to it under that name. | Resolved |
-| **A19** | **Gap.** §16 gives a driver `phone` but no email, yet the auth model (D15) makes email the login identifier. Bus drivers often have no work email. | §16, §25 | D20: nullable `email` (globally unique when present) + `username` (unique per company); driver app logs in with company code + username + password. | Confirm |
-| **A20** | **Gap.** DoD step 1 is "an administrator creates a company", but no surface existed for it — only the API and the seed script. Company creation is a `SUPER_ADMIN` action, and A7 keeps `SUPER_ADMIN` off the company-scoped dashboard. | §24, §43 | A small platform section at `admin.tubus.example/platform`, visible only to `SUPER_ADMIN`: create/suspend a company, set slug and timezone, create its first `COMPANY_ADMIN`, manage hostnames. Four screens, no separate app. Added to Phase 5. | Confirm |
-| **A21** | **Gap.** No password recovery exists anywhere, and the MVP deliberately has no SMTP dependency. A driver who forgets a password would be unrecoverable. | §25 | Administrator-issued resets, no email needed: `COMPANY_ADMIN` resets operators and drivers, `SUPER_ADMIN` resets a company admin, and the one-time password is displayed once at issue and must be changed at next login. Self-service reset by email is deferred until SMTP exists. | Confirm |
-| **A22** | `SCHEDULED` is one of §17's four trip statuses, but D16 removes trip pre-generation, so nothing in the MVP can ever produce it. | §17 | Keep the enum value for forward compatibility, and state explicitly that it is unreachable in the MVP. The state machine is `→ ACTIVE → COMPLETED \| CANCELLED`. No UI, query or test may assume a `SCHEDULED` trip can exist. | No — documented |
-| **A23** | D6 makes variants directional, so a route has buses travelling both ways — but §5's route page mockup shows a single direction and never mentions choosing one. | §5, §11 | The route page shows a direction selector built from the variants' headsigns, defaulting to the direction that currently has active buses (or the default variant when none do). Subscribing to a route joins the rooms of all its variants; the selector filters what is drawn. | Confirm |
+| #       | Issue                                                                                                                                                                                                                                   | Where         | Resolution proposed                                                                                                                                                                                                                                                                  | Needs your input?           |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------- |
+| **A1**  | The spec never says where the admin dashboard is served from. Serving it on company/custom domains would place auth cookies on customer-controlled hostnames.                                                                           | §4, §24, §41  | Admin on a single fixed host (`admin.tubus.example`); company + custom hosts serve passengers only.                                                                                                                                                                                  | **Yes** — product decision  |
+| **A2**  | **Direct contradiction.** §13 says a stop has `route_variant_id` (stop belongs to one variant) _and_ "a stop may exist in multiple route variants".                                                                                     | §13           | Split into `stops` (company-owned physical place: name, lat, lng) and `route_variant_stops` (join carrying `sequence`). Satisfies both readings; matches the GTFS mental model.                                                                                                      | No — resolved               |
+| **A3**  | §5 demands interpolated movement; §21 forbids implying precision the GPS does not have.                                                                                                                                                 | §5 vs §21     | D13: interpolate between known fixes only, never extrapolate; freeze on stale; render an accuracy circle when accuracy is poor.                                                                                                                                                      | No — resolved               |
+| **A4**  | Live-status thresholds are specified but the reference clock is not. Using server time makes an offline flush look live.                                                                                                                | §19, §20      | D10: derive from newest `device_timestamp`.                                                                                                                                                                                                                                          | No — resolved               |
+| **A5**  | Two vocabularies for the same concept: §5 says live / recently updated / stale / unavailable; §20 says LIVE / STALE / OFFLINE / COMPLETED.                                                                                              | §5 vs §20     | Canonical enum = §20. UI copy maps onto it (`LIVE`→"En vivo", `STALE`→"Actualizado hace 2 min", `OFFLINE`→"Sin señal desde hace 5 min").                                                                                                                                             | No — resolved               |
+| **A6**  | §17 lists Schedule as part of a trip, but the DoD has the driver simply starting a trip. Are trips pre-generated from schedules?                                                                                                        | §14, §17, §43 | D16: `schedule_id` nullable, trips created on start, nearest departure auto-linked.                                                                                                                                                                                                  | Confirm                     |
+| **A7**  | §24 defines `SUPER_ADMIN`, which by definition crosses the tenant boundary that §4 declares inviolable.                                                                                                                                 | §4 vs §24     | SUPER_ADMIN is a platform user (`company_id IS NULL`) restricted in the MVP to company lifecycle + domain management. It **cannot** read operational data (trips, locations, drivers) without an explicit, time-boxed, audit-logged impersonation grant — which is out of MVP scope. | Confirm                     |
+| **A8**  | §14 says schedules belong to "the company and route/route variant as appropriate" — ambiguous attachment point.                                                                                                                         | §14           | Attach to `route_variant`. A departure follows a physical path; a route-level schedule would be undefined when the route has two variants.                                                                                                                                           | Confirm                     |
+| **A9**  | §16 says drivers should not have to pick arbitrary buses "if the company has configured an assignment", but no assignment model is specified.                                                                                           | §6, §16, §24  | MVP: `driver_profiles.default_bus_id`, pre-selected in the app, overridable at trip start (buses break down). A dated `bus_assignments` table is deferred.                                                                                                                           | Confirm                     |
+| **A10** | **No timezone anywhere in the spec**, yet schedules are wall-clock times and the target market is Costa Rica.                                                                                                                           | §14           | `companies.timezone` (default `America/Costa_Rica`). Schedules store `time` + `days_of_week`; all resolution to instants happens in the company timezone. All other timestamps are `timestamptz` in UTC.                                                                             | No — resolved               |
+| **A11** | **Passenger UI language is never stated.** The spec is English; every example is Spanish (San José, Grecia, Naranjo).                                                                                                                   | §5, §23       | **Resolved by `CODESTYLE.md`:** code, identifiers, filenames and technical docs in English; user-facing passenger/company text may be Spanish. Ship es-CR for passenger, driver and admin UI, with all copy in one `lib/copy.ts` dictionary — no i18n framework.                     | Resolved                    |
+| **A12** | §27 requires "no paid third-party infrastructure", but MapLibre needs a tile source, and OSM's public tile servers forbid production application use.                                                                                   | §27 vs §28    | `NEXT_PUBLIC_MAP_STYLE_URL` env var. Dev default: OSM raster (acceptable at dev volume). Production: MapTiler/Stadia/Protomaps free tier, or self-hosted `pmtiles` for Costa Rica (~200 MB, static file, zero recurring cost). Decide before launch, not before coding.              | **Yes** — before production |
+| **A13** | §37 requires the project to follow `CODESTYLE.md`.                                                                                                                                                                                      | §37           | **Resolved:** [`CODESTYLE.md`](CODESTYLE.md) now exists and is authoritative. Phase 0 adds only the mechanical enforcement (ESLint/Prettier config, commitlint) — it does not restate the rules.                                                                                     | Resolved                    |
+| **A14** | §32 requires configurable retention but gives no default.                                                                                                                                                                               | §32           | `LOCATION_RETENTION_DAYS=90` for raw points; trips/live-state kept indefinitely. Nightly job deletes in bounded batches.                                                                                                                                                             | Confirm number              |
+| **A15** | Nothing defines what happens when a driver forgets to end a trip. Trips would stay `ACTIVE` forever and appear on the passenger map.                                                                                                    | §17, §20      | Sweeper job: a trip with no new points for `TRIP_AUTO_END_MINUTES` (default 90) is auto-completed with `end_reason = AUTO_TIMEOUT`, and admins may end a trip manually.                                                                                                              | Confirm                     |
+| **A16** | §24 says "assign" for buses and drivers without defining the semantics.                                                                                                                                                                 | §24           | Interpreted as: assign a default bus to a driver (A9), and assign a driver+bus to a trip at start. No standing shift-roster model in the MVP.                                                                                                                                        | Confirm                     |
+| **A17** | §33 targets "dozens of buses" while §10 mandates WebSockets; a single in-memory-room process is implied but never stated as a constraint.                                                                                               | §10, §33      | Stated explicitly as D2, with the documented (unbuilt) Redis-adapter path.                                                                                                                                                                                                           | No — resolved               |
+| **A18** | The specification filename did not match the name used to reference it.                                                                                                                                                                 | —             | **Resolved:** the file is now `SPECS.md`, and `README.md` / `ROADMAP.md` link to it under that name.                                                                                                                                                                                 | Resolved                    |
+| **A19** | **Gap.** §16 gives a driver `phone` but no email, yet the auth model (D15) makes email the login identifier. Bus drivers often have no work email.                                                                                      | §16, §25      | D20: nullable `email` (globally unique when present) + `username` (unique per company); driver app logs in with company code + username + password.                                                                                                                                  | Confirm                     |
+| **A20** | **Gap.** DoD step 1 is "an administrator creates a company", but no surface existed for it — only the API and the seed script. Company creation is a `SUPER_ADMIN` action, and A7 keeps `SUPER_ADMIN` off the company-scoped dashboard. | §24, §43      | A small platform section at `admin.tubus.example/platform`, visible only to `SUPER_ADMIN`: create/suspend a company, set slug and timezone, create its first `COMPANY_ADMIN`, manage hostnames. Four screens, no separate app. Added to Phase 5.                                     | Confirm                     |
+| **A21** | **Gap.** No password recovery exists anywhere, and the MVP deliberately has no SMTP dependency. A driver who forgets a password would be unrecoverable.                                                                                 | §25           | Administrator-issued resets, no email needed: `COMPANY_ADMIN` resets operators and drivers, `SUPER_ADMIN` resets a company admin, and the one-time password is displayed once at issue and must be changed at next login. Self-service reset by email is deferred until SMTP exists. | Confirm                     |
+| **A22** | `SCHEDULED` is one of §17's four trip statuses, but D16 removes trip pre-generation, so nothing in the MVP can ever produce it.                                                                                                         | §17           | Keep the enum value for forward compatibility, and state explicitly that it is unreachable in the MVP. The state machine is `→ ACTIVE → COMPLETED \| CANCELLED`. No UI, query or test may assume a `SCHEDULED` trip can exist.                                                       | No — documented             |
+| **A23** | D6 makes variants directional, so a route has buses travelling both ways — but §5's route page mockup shows a single direction and never mentions choosing one.                                                                         | §5, §11       | The route page shows a direction selector built from the variants' headsigns, defaulting to the direction that currently has active buses (or the default variant when none do). Subscribing to a route joins the rooms of all its variants; the selector filters what is drawn.     | Confirm                     |
 
 ---
 
@@ -185,15 +192,15 @@ Critical path: **1 → 3 → 4**. Phase 5 (admin UI) and Phase 6 (Android) are p
 
 ### 3.2 External runtime dependencies
 
-| Dependency | Purpose | Cost | Replaceable? |
-|---|---|---|---|
-| PostgreSQL 16 | Everything | Free, self-hosted | No (by design) |
-| Map tile style | MapLibre basemap | Free tier or self-hosted (**A12**) | Yes — one env var |
-| VPS (2 vCPU / 4 GB / 80 GB) | Production host | ~$12–24/mo | Yes |
-| Domain + DNS | `tubus.example` + wildcard A record | ~$15/yr | Yes |
-| Let's Encrypt | TLS via Caddy | Free | Yes (ZeroSSL fallback built into Caddy) |
-| Google Play Console | Driver app distribution | $25 one-time | Internal-testing track or direct APK for the MVP |
-| Google Play Services | `FusedLocationProviderClient` | Free | Yes — AOSP `LocationManager` fallback if needed |
+| Dependency                  | Purpose                             | Cost                               | Replaceable?                                     |
+| --------------------------- | ----------------------------------- | ---------------------------------- | ------------------------------------------------ |
+| PostgreSQL 16               | Everything                          | Free, self-hosted                  | No (by design)                                   |
+| Map tile style              | MapLibre basemap                    | Free tier or self-hosted (**A12**) | Yes — one env var                                |
+| VPS (2 vCPU / 4 GB / 80 GB) | Production host                     | ~$12–24/mo                         | Yes                                              |
+| Domain + DNS                | `tubus.example` + wildcard A record | ~$15/yr                            | Yes                                              |
+| Let's Encrypt               | TLS via Caddy                       | Free                               | Yes (ZeroSSL fallback built into Caddy)          |
+| Google Play Console         | Driver app distribution             | $25 one-time                       | Internal-testing track or direct APK for the MVP |
+| Google Play Services        | `FusedLocationProviderClient`       | Free                               | Yes — AOSP `LocationManager` fallback if needed  |
 
 ### 3.3 Key libraries
 
@@ -240,10 +247,12 @@ Index `(company_id, role)`. Unique `(company_id, username)`. Check constraint: `
 **`trips`** — `id`, `company_id`, `route_id`, `route_variant_id`, `schedule_id` (nullable, **A6**), `bus_id`, `driver_user_id`, `status` (SCHEDULED|ACTIVE|COMPLETED|CANCELLED — `SCHEDULED` unreachable in the MVP, **A22**), `scheduled_departure_at`, `started_at`, `ended_at`, `end_reason` (DRIVER|ADMIN|AUTO_TIMEOUT, nullable), `rejected_point_count` (int, default 0 — incremented only when a batch contains points failing D12's clock checks, so operators can see a misconfigured device), timestamps.
 Indexes: `(company_id, status)`, `(route_variant_id, status)`, `(company_id, started_at DESC)`, `(driver_user_id, started_at DESC)`.
 **Partial unique indexes** (the integrity backbone):
+
 ```sql
 CREATE UNIQUE INDEX trips_one_active_per_bus    ON trips (bus_id)         WHERE status = 'ACTIVE';
 CREATE UNIQUE INDEX trips_one_active_per_driver ON trips (driver_user_id) WHERE status = 'ACTIVE';
 ```
+
 These make "two trips on one bus" impossible at the database level rather than by convention.
 
 **`location_points`** — `id` (bigserial), `trip_id`, `company_id`, `client_point_id` (uuid), `latitude`, `longitude`, `accuracy_m` (real), `speed_mps` (real), `bearing_deg` (real), `device_timestamp`, `server_timestamp` (default now()).
@@ -264,6 +273,7 @@ Index `(route_variant_id)`, index `(company_id)`.
 ### 4.2 Hot-path SQL
 
 Ingest (one statement per batch, D8/D11):
+
 ```sql
 INSERT INTO location_points (trip_id, company_id, client_point_id, latitude, longitude,
                              accuracy_m, speed_mps, bearing_deg, device_timestamp)
@@ -282,6 +292,7 @@ RETURNING trip_id;               -- empty result ⇒ position did not advance �
 Both statements run in one transaction; the WebSocket broadcast happens after it commits, and only if the second statement returned a row (D19).
 
 Passenger "buses on this route" (no joins, no history scan — §19):
+
 ```sql
 SELECT trip_id, bus_id, latitude, longitude, bearing_deg, accuracy_m, speed_mps, device_timestamp
 FROM trip_live_states WHERE route_variant_id = ANY($1);
@@ -289,11 +300,11 @@ FROM trip_live_states WHERE route_variant_id = ANY($1);
 
 ### 4.3 Retention and background jobs (`@nestjs/schedule`)
 
-| Job | Cadence | Action |
-|---|---|---|
-| `purgeOldLocations` | daily 03:00 company-local | `DELETE FROM location_points WHERE server_timestamp < now() - interval '90 days'` in 10 000-row batches |
-| `sweepStaleTrips` | every 5 min | Auto-complete `ACTIVE` trips with no point for `TRIP_AUTO_END_MINUTES` (**A15**) |
-| `purgeExpiredTokens` | daily | Delete refresh tokens past `expires_at` |
+| Job                  | Cadence                   | Action                                                                                                  |
+| -------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `purgeOldLocations`  | daily 03:00 company-local | `DELETE FROM location_points WHERE server_timestamp < now() - interval '90 days'` in 10 000-row batches |
+| `sweepStaleTrips`    | every 5 min               | Auto-complete `ACTIVE` trips with no point for `TRIP_AUTO_END_MINUTES` (**A15**)                        |
+| `purgeExpiredTokens` | daily                     | Delete refresh tokens past `expires_at`                                                                 |
 
 ---
 
@@ -338,7 +349,7 @@ Three cross-cutting rules that are easy to omit and expensive to retrofit:
 
 - **Logo upload** (§42) accepts PNG, JPEG and WebP only, validated by magic bytes rather than by filename or content-type, capped at 1 MB, and stored under a generated name. **SVG is rejected** — it is a script-execution vector served from the company's own origin. Files land on a mounted volume served by the backend behind a `Content-Type` it sets itself.
 - **The public WebSocket namespace is unauthenticated**, so it is rate-limited like any public endpoint: a per-IP connection cap, a cap on rooms per socket, and a bounded `subscribe` rate. Without these, one client can open unlimited sockets against a single-process gateway.
-- **A driver may only post to their own active trip.** Ingest verifies `trip.driver_user_id = sub` **and** `trip.status = 'ACTIVE'` before accepting a batch. §26 calls this out by name ("a malicious user must not be able to submit arbitrary locations for another company's buses"), and it is a *within*-tenant check that the cross-tenant conformance suite would not catch — so it gets its own tests (§9.1).
+- **A driver may only post to their own active trip.** Ingest verifies `trip.driver_user_id = sub` **and** `trip.status = 'ACTIVE'` before accepting a batch. §26 calls this out by name ("a malicious user must not be able to submit arbitrary locations for another company's buses"), and it is a _within_-tenant check that the cross-tenant conformance suite would not catch — so it gets its own tests (§9.1).
 
 ### 5.1 API surface (v1)
 
@@ -357,17 +368,17 @@ Three cross-cutting rules that are easy to omit and expensive to retrofit:
 
 ### 5.2 Authorization matrix
 
-| Capability | SUPER_ADMIN | COMPANY_ADMIN | OPERATOR | DRIVER |
-|---|:--:|:--:|:--:|:--:|
-| Create/suspend companies, manage domains | ✅ | own domains | — | — |
-| Create a company's first admin | ✅ | — | — | — |
-| Manage users & roles | — (A7) | ✅ | — | — |
-| Reset another user's password (A21) | company admins only | own company's operators & drivers | — | — |
-| Change own password | ✅ | ✅ | ✅ | ✅ |
-| Buses / drivers / routes / stops / schedules CRUD | — | ✅ | read + trip control | — |
-| Live fleet map, trip history | — | ✅ | ✅ | own trips |
-| End/cancel any trip | — | ✅ | ✅ | own trip |
-| Start trip, submit locations | — | — | — | ✅ |
+| Capability                                        |     SUPER_ADMIN     |           COMPANY_ADMIN           |      OPERATOR       |  DRIVER   |
+| ------------------------------------------------- | :-----------------: | :-------------------------------: | :-----------------: | :-------: |
+| Create/suspend companies, manage domains          |         ✅          |            own domains            |          —          |     —     |
+| Create a company's first admin                    |         ✅          |                 —                 |          —          |     —     |
+| Manage users & roles                              |       — (A7)        |                ✅                 |          —          |     —     |
+| Reset another user's password (A21)               | company admins only | own company's operators & drivers |          —          |     —     |
+| Change own password                               |         ✅          |                ✅                 |         ✅          |    ✅     |
+| Buses / drivers / routes / stops / schedules CRUD |          —          |                ✅                 | read + trip control |     —     |
+| Live fleet map, trip history                      |          —          |                ✅                 |         ✅          | own trips |
+| End/cancel any trip                               |          —          |                ✅                 |         ✅          | own trip  |
+| Start trip, submit locations                      |          —          |                 —                 |          —          |    ✅     |
 
 Enforced by `RolesGuard` + `CompanyScopeGuard`; every table row above becomes a test case in the conformance suite (§9.1).
 
@@ -478,12 +489,12 @@ This is what makes DoD steps 19–23 (offline interruption and resync) testable 
 
 ### 9.1 Backend
 
-| Layer | Tool | Coverage |
-|---|---|---|
-| Unit | Jest | Live-status derivation across thresholds and clock skew; timestamp clamping (D12); batch dedup rules; schedule day/time resolution in company timezone; geometry validation; permission matrix |
-| Integration | Jest + Postgres (a `tubus_test` database in the dev compose; CI uses the GitHub Actions `postgres` service — no new dependency) | Every controller against a real database, with a per-file truncate-and-reseed |
-| **Tenancy conformance** | Jest, parametrized | Every tenant-scoped endpoint × {other company's token, no token, wrong role}. Asserts **404** for cross-tenant, 401 unauth, 403 wrong-role. This suite is the enforcement mechanism for §26 and is a required CI gate. |
-| Pipeline e2e | Jest | Boot the Nest app + a socket client, drive the simulator programmatically, assert: points persisted, live state advanced, WS event received, duplicate replay is a no-op, out-of-order flush does not move the marker backwards |
+| Layer                   | Tool                                                                                                                            | Coverage                                                                                                                                                                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit                    | Jest                                                                                                                            | Live-status derivation across thresholds and clock skew; timestamp clamping (D12); batch dedup rules; schedule day/time resolution in company timezone; geometry validation; permission matrix                                  |
+| Integration             | Jest + Postgres (a `tubus_test` database in the dev compose; CI uses the GitHub Actions `postgres` service — no new dependency) | Every controller against a real database, with a per-file truncate-and-reseed                                                                                                                                                   |
+| **Tenancy conformance** | Jest, parametrized                                                                                                              | Every tenant-scoped endpoint × {other company's token, no token, wrong role}. Asserts **404** for cross-tenant, 401 unauth, 403 wrong-role. This suite is the enforcement mechanism for §26 and is a required CI gate.          |
+| Pipeline e2e            | Jest                                                                                                                            | Boot the Nest app + a socket client, drive the simulator programmatically, assert: points persisted, live state advanced, WS event received, duplicate replay is a no-op, out-of-order flush does not move the marker backwards |
 
 Explicit test cases required by §36 that are easy to miss: duplicate location handling (send the same batch twice), offline synchronization (200 points with timestamps 10 minutes old arriving at once), and active-bus retrieval performance (the live query must not touch `location_points`).
 
@@ -502,7 +513,7 @@ Playwright: two smoke flows only — (1) passenger opens a company host, opens a
 
 JUnit + coroutines-test/Turbine: queue write-before-send ordering, batch chunking, dedup after a failed-then-retried upload, token refresh on 401, backoff schedule. Room tested in-memory. Instrumented tests (a single API level in CI, plus manual matrix testing): permission grant/deny paths, foreground service starts and posts its notification, service survives the app being backgrounded, trip end stops the service.
 
-A **contract test** in the Android suite asserts the request/response JSON shape against fixture files checked into `packages/contracts/fixtures/`. The API's integration tests validate the *same* files against their Zod schemas, so a contract change that breaks Android breaks the backend build too. Both sides read committed fixtures — there is no generator, no codegen step and no build-order coupling between the Gradle and pnpm projects.
+A **contract test** in the Android suite asserts the request/response JSON shape against fixture files checked into `packages/contracts/fixtures/`. The API's integration tests validate the _same_ files against their Zod schemas, so a contract change that breaks Android breaks the backend build too. Both sides read committed fixtures — there is no generator, no codegen step and no build-order coupling between the Gradle and pnpm projects.
 
 ### 9.4 Manual test plan
 
@@ -526,7 +537,7 @@ pnpm simulate --route sanjose-palmares    # a bus starts moving
 
 **Android against the local backend.** Physical device over USB: `adb reverse tcp:8080 tcp:8080`, then `API_BASE_URL=http://localhost:8080`. Emulator: `http://10.0.2.2:8080`. Cleartext HTTP is permitted by a `network_security_config.xml` scoped to `localhost`/`10.0.2.2` and applied **to the debug build only**.
 
-**Seed data** (`tools/seed`) creates: a platform SUPER_ADMIN, company *Tuan RL* (`tuanrl.localhost`, company code `tuanrl`), a COMPANY_ADMIN, an OPERATOR, two drivers with usernames (D20), three buses, the route *San José → Palmares* with two directional variants carrying real polyline geometry, five stops, and a weekday schedule — i.e. DoD steps 1–7 are satisfied by one command, so every subsequent test starts from a realistic state. Credentials are printed on completion and are development-only.
+**Seed data** (`tools/seed`) creates: a platform SUPER_ADMIN, company _Tuan RL_ (`tuanrl.localhost`, company code `tuanrl`), a COMPANY_ADMIN, an OPERATOR, two drivers with usernames (D20), three buses, the route _San José → Palmares_ with two directional variants carrying real polyline geometry, five stops, and a weekday schedule — i.e. DoD steps 1–7 are satisfied by one command, so every subsequent test starts from a realistic state. Credentials are printed on completion and are development-only.
 
 `.env.example` (§39) documents every variable with a comment: `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL`, `PLATFORM_DOMAIN`, `ADMIN_HOST`, `PUBLIC_API_URL`, `NEXT_PUBLIC_WS_URL`, `NEXT_PUBLIC_MAP_STYLE_URL`, `LOCATION_RETENTION_DAYS`, `TRIP_AUTO_END_MINUTES`, `LOG_LEVEL`, `RATE_LIMIT_*`. The API fails to boot with a clear message if a required variable is missing — no silent defaults for secrets.
 
@@ -561,18 +572,18 @@ Docker Compose (single VPS, 2 vCPU / 4 GB)
 
 Estimates assume one experienced full-stack developer; Android is the least compressible phase.
 
-| Phase | Deliverable | Exit criteria | Est. |
-|---|---|---|---|
-| **0 — Foundations** | Monorepo, pnpm workspaces, TS config, ESLint/Prettier enforcing [`CODESTYLE.md`](CODESTYLE.md), commitlint + husky, dev `docker-compose.yml`, `.env.example`, CI (lint + typecheck + test) | `docker compose up` starts Postgres; CI green on an empty test suite | 2–3 d |
-| **1 — Spine** | Full Prisma schema + migrations (incl. the raw-SQL partial unique indexes on `trips`), seed script, dual login (email / company code + username — D20), argon2id, JWT access + rotating refresh, forced password change, roles guard, host→company resolution, fail-closed tenancy extension, pino logging, error envelope | Seeded DB; login works for all four roles from both surfaces; the **tenancy conformance suite is green** and wired as a CI gate | 5–7 d |
-| **2 — Domain CRUD** | Companies, users, drivers, buses, routes, variants (geometry validation), stops + transactional reorder, schedules — API + integration tests | DoD steps 1–7 achievable via API; §36's route/stop retrieval tests pass | 5–6 d |
-| **3 — Live pipeline ★** | Trip state machine, batch ingest with dedup and clamping, `trip_live_states` upsert, status derivation, Socket.IO gateway with host-scoped rooms, public endpoints, **GPS simulator** | Simulator drives a trip; points persist; live state advances; WS events observed; duplicate + out-of-order flush tests pass | 5–6 d |
-| **4 — Passenger web ★** | Host-resolved landing page, route page (SSR shell), MapLibre map, route line, stops, interpolated bus marker, status badges, reconnect + polling fallback | A passenger opens a company host and watches the simulated bus move — **DoD steps 14–18, 23** | 5–6 d |
-| **5 — Admin dashboard** | Login, all CRUD screens, geometry/stop map editors, live fleet map, trip history + search + playback, users & roles, admin-issued password reset (**A21**), company settings, audit log view, **platform section for company creation (A20)** | DoD steps 1–7 and 24–25 achievable through the UI, starting from an empty database | 7–9 d |
-| **6 — Android** | First-launch company code + login (D20), assignment screen, start/end trip, foreground service, Fused location, location-settings resolution, Room queue, WorkManager sync, GPS/network/queue status UI, incident report | Real phone drives a real trip and appears on the passenger map — **DoD steps 8–13** | 7–9 d |
-| **7 — Offline hardening** | Airplane-mode cycles, long-outage flush, queue caps, token expiry while offline, reboot notification, battery-optimization prompt, crash recovery of an active trip | **DoD steps 19–23** verified on a physical device over a real drive | 3–4 d |
-| **8 — Product completion** | Branding/logo upload, QR generation + print view, custom-domain management + Caddy `ask` endpoint, retention + stale-trip jobs, audit interceptor coverage | Custom domain serves over HTTPS end-to-end; QR resolves to a live route | 3–4 d |
-| **9 — Production** | Prod compose + Caddyfile, CI/CD deploy, backups + **restore drill**, rate limits, security pass, Playwright smoke suite, ops runbook | Full DoD §43 (all 25 steps) reproduced on the deployed VPS | 3–4 d |
+| Phase                      | Deliverable                                                                                                                                                                                                                                                                                                                | Exit criteria                                                                                                                   | Est.  |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **0 — Foundations**        | Monorepo, pnpm workspaces, TS config, ESLint/Prettier enforcing [`CODESTYLE.md`](CODESTYLE.md), commitlint + husky, dev `docker-compose.yml`, `.env.example`, CI (lint + typecheck + test)                                                                                                                                 | `docker compose up` starts Postgres; CI green on an empty test suite                                                            | 2–3 d |
+| **1 — Spine**              | Full Prisma schema + migrations (incl. the raw-SQL partial unique indexes on `trips`), seed script, dual login (email / company code + username — D20), argon2id, JWT access + rotating refresh, forced password change, roles guard, host→company resolution, fail-closed tenancy extension, pino logging, error envelope | Seeded DB; login works for all four roles from both surfaces; the **tenancy conformance suite is green** and wired as a CI gate | 5–7 d |
+| **2 — Domain CRUD**        | Companies, users, drivers, buses, routes, variants (geometry validation), stops + transactional reorder, schedules — API + integration tests                                                                                                                                                                               | DoD steps 1–7 achievable via API; §36's route/stop retrieval tests pass                                                         | 5–6 d |
+| **3 — Live pipeline ★**    | Trip state machine, batch ingest with dedup and clamping, `trip_live_states` upsert, status derivation, Socket.IO gateway with host-scoped rooms, public endpoints, **GPS simulator**                                                                                                                                      | Simulator drives a trip; points persist; live state advances; WS events observed; duplicate + out-of-order flush tests pass     | 5–6 d |
+| **4 — Passenger web ★**    | Host-resolved landing page, route page (SSR shell), MapLibre map, route line, stops, interpolated bus marker, status badges, reconnect + polling fallback                                                                                                                                                                  | A passenger opens a company host and watches the simulated bus move — **DoD steps 14–18, 23**                                   | 5–6 d |
+| **5 — Admin dashboard**    | Login, all CRUD screens, geometry/stop map editors, live fleet map, trip history + search + playback, users & roles, admin-issued password reset (**A21**), company settings, audit log view, **platform section for company creation (A20)**                                                                              | DoD steps 1–7 and 24–25 achievable through the UI, starting from an empty database                                              | 7–9 d |
+| **6 — Android**            | First-launch company code + login (D20), assignment screen, start/end trip, foreground service, Fused location, location-settings resolution, Room queue, WorkManager sync, GPS/network/queue status UI, incident report                                                                                                   | Real phone drives a real trip and appears on the passenger map — **DoD steps 8–13**                                             | 7–9 d |
+| **7 — Offline hardening**  | Airplane-mode cycles, long-outage flush, queue caps, token expiry while offline, reboot notification, battery-optimization prompt, crash recovery of an active trip                                                                                                                                                        | **DoD steps 19–23** verified on a physical device over a real drive — **outstanding, needs hardware; see §17**                  | 3–4 d |
+| **8 — Product completion** | Branding/logo upload, QR generation + print view, custom-domain management + Caddy `ask` endpoint, retention + stale-trip jobs, audit interceptor coverage                                                                                                                                                                 | Custom domain serves over HTTPS end-to-end; QR resolves to a live route                                                         | 3–4 d |
+| **9 — Production**         | Prod compose + Caddyfile, CI/CD deploy, backups + **restore drill**, rate limits, security pass, Playwright smoke suite, ops runbook                                                                                                                                                                                       | Full DoD §43 (all 25 steps) reproduced on the deployed VPS                                                                      | 3–4 d |
 
 **Total: ~41–56 developer-days.** Phases 3 and 4 (★) constitute the vertical slice that proves §45's core thesis; if the schedule compresses, protect those two and defer scope from Phase 5 and 8 instead.
 
@@ -584,16 +595,16 @@ At the end of Phase 4 — roughly half the effort — the product can be demonst
 
 ## 13. Risk register
 
-| Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|
-| OEM battery managers kill the tracking service mid-shift | High | High | Battery-optimization exemption prompt, heartbeat-based death detection with driver alert, per-OEM setup guide, device-matrix manual testing in Phase 7 |
-| Map tile provider choice deferred too long (**A12**) | Medium | Medium | Decide before Phase 9; `pmtiles` for Costa Rica is a zero-recurring-cost fallback that can be adopted in a day |
-| Driver phone data plan exhausted or throttled | Medium | Medium | Batching plus the 10 m distance filter keeps usage near ~5 MB/shift; queue survives loss |
-| Play Store review friction for a location app | Medium | Medium | Background-location permission avoided entirely (§7.1); internal-testing track is available immediately as a fallback |
-| WebSocket fan-out outgrows one process | Low (MVP) | Medium | Documented Redis-adapter path; polling fallback already exists as a safety net |
-| Device clock skew corrupts ordering | Medium | Medium | Clamping and rejection rules (D12), with rejected-point counters surfaced in the admin trip view |
-| Custom-domain on-demand TLS abused to mint certificates | Low | Medium | The `ask` endpoint only answers 200 for verified hostnames already in `company_domains`, and is rate-limited |
-| Scope creep from §44's future-features list | High | High | §44 is explicitly out of scope; every deferred item has a documented, additive migration path, so saying "not now" costs nothing later |
+| Risk                                                     | Likelihood | Impact | Mitigation                                                                                                                                             |
+| -------------------------------------------------------- | ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| OEM battery managers kill the tracking service mid-shift | High       | High   | Battery-optimization exemption prompt, heartbeat-based death detection with driver alert, per-OEM setup guide, device-matrix manual testing in Phase 7 |
+| Map tile provider choice deferred too long (**A12**)     | Medium     | Medium | Decide before Phase 9; `pmtiles` for Costa Rica is a zero-recurring-cost fallback that can be adopted in a day                                         |
+| Driver phone data plan exhausted or throttled            | Medium     | Medium | Batching plus the 10 m distance filter keeps usage near ~5 MB/shift; queue survives loss                                                               |
+| Play Store review friction for a location app            | Medium     | Medium | Background-location permission avoided entirely (§7.1); internal-testing track is available immediately as a fallback                                  |
+| WebSocket fan-out outgrows one process                   | Low (MVP)  | Medium | Documented Redis-adapter path; polling fallback already exists as a safety net                                                                         |
+| Device clock skew corrupts ordering                      | Medium     | Medium | Clamping and rejection rules (D12), with rejected-point counters surfaced in the admin trip view                                                       |
+| Custom-domain on-demand TLS abused to mint certificates  | Low        | Medium | The `ask` endpoint only answers 200 for verified hostnames already in `company_domains`, and is rate-limited                                           |
+| Scope creep from §44's future-features list              | High       | High   | §44 is explicitly out of scope; every deferred item has a documented, additive migration path, so saying "not now" costs nothing later                 |
 
 ---
 
@@ -616,26 +627,42 @@ A11, A13 and A18 are resolved and no longer need an answer. Questions 1–3 belo
 
 `CODESTYLE.md` requires that future work be tracked here rather than in `TODO` comments. This is that list. Nothing below is in MVP scope; each entry names what would trigger it, so the decision to build it is evidence-driven rather than speculative.
 
-| Item | Trigger | Notes |
-|---|---|---|
-| Socket.IO Redis adapter, multiple API processes | One process saturates, or zero-downtime deploys become a requirement | One added adapter line + one container (D2) |
-| `location_points` partitioning by month | Table exceeds ~50 M rows or retention deletes get slow | Retention becomes `DROP PARTITION` (§4.1) |
-| PostGIS | First feature needing real geographic queries — map matching, route-deviation detection, or ETA | `CREATE EXTENSION` + a generated column from existing jsonb (D4) |
-| Self-service password reset by email | An SMTP provider is chosen | Replaces admin-issued resets (A21); do not add SMTP for this alone |
-| `company_memberships` join table | One person must administer two companies | Removes D15's single-company limit additively |
-| `bus_assignments` with validity windows | Companies run shift rosters rather than a fixed bus per driver | Supersedes `default_bus_id` (A9) |
-| Trip pre-generation from schedules | Operators need to see expected-but-not-started departures, or schedule-adherence reporting | Makes `SCHEDULED` reachable (A22) |
-| SUPER_ADMIN audited impersonation | Platform support needs to reproduce a company-specific bug | Must be time-boxed and audit-logged (A7) |
-| Stop-level QR codes and "next buses at this stop" | Companies ask for stop signage | §23 lists this as optional; needs arrival estimation to be useful |
-| i18n framework | A second language is actually required | Until then, one `copy.ts` dictionary (A11) |
-| Object storage for logos | Multiple app servers, or the volume becomes awkward to back up | One-file swap behind the existing upload service (§1.2) |
+| Item                                              | Trigger                                                                                         | Notes                                                              |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Socket.IO Redis adapter, multiple API processes   | One process saturates, or zero-downtime deploys become a requirement                            | One added adapter line + one container (D2)                        |
+| `location_points` partitioning by month           | Table exceeds ~50 M rows or retention deletes get slow                                          | Retention becomes `DROP PARTITION` (§4.1)                          |
+| PostGIS                                           | First feature needing real geographic queries — map matching, route-deviation detection, or ETA | `CREATE EXTENSION` + a generated column from existing jsonb (D4)   |
+| Self-service password reset by email              | An SMTP provider is chosen                                                                      | Replaces admin-issued resets (A21); do not add SMTP for this alone |
+| `company_memberships` join table                  | One person must administer two companies                                                        | Removes D15's single-company limit additively                      |
+| `bus_assignments` with validity windows           | Companies run shift rosters rather than a fixed bus per driver                                  | Supersedes `default_bus_id` (A9)                                   |
+| Trip pre-generation from schedules                | Operators need to see expected-but-not-started departures, or schedule-adherence reporting      | Makes `SCHEDULED` reachable (A22)                                  |
+| SUPER_ADMIN audited impersonation                 | Platform support needs to reproduce a company-specific bug                                      | Must be time-boxed and audit-logged (A7)                           |
+| Stop-level QR codes and "next buses at this stop" | Companies ask for stop signage                                                                  | §23 lists this as optional; needs arrival estimation to be useful  |
+| i18n framework                                    | A second language is actually required                                                          | Until then, one `copy.ts` dictionary (A11)                         |
+| Object storage for logos                          | Multiple app servers, or the volume becomes awkward to back up                                  | One-file swap behind the existing upload service (§1.2)            |
 
 ---
 
 ## 16. Readiness
 
-This roadmap is ready for implementation. The specification has been reviewed section by section against it; §§1–45 are accounted for, all 25 Definition-of-Done steps map to a phase with exit criteria, and the twenty-three ambiguities, contradictions and gaps in §2 each carry a resolution. Fourteen are settled and need no input; the nine marked *Confirm* have a stated default that implementation will follow unless you say otherwise.
+This roadmap is ready for implementation. The specification has been reviewed section by section against it; §§1–45 are accounted for, all 25 Definition-of-Done steps map to a phase with exit criteria, and the twenty-three ambiguities, contradictions and gaps in §2 each carry a resolution. Fourteen are settled and need no input; the nine marked _Confirm_ have a stated default that implementation will follow unless you say otherwise.
 
 Phase 0 can begin. The first decision that cannot be deferred past Phase 1 is A19/A20 — driver login identity and company creation both touch the schema, and changing them after the migration exists costs more than settling them now.
 
-*No code has been written.*
+---
+
+## 17. Implementation status
+
+All ten phases are implemented and committed. §43's 25-step Definition of Done:
+
+| Steps     | What                                                          | Evidence                                                                                                                                                                                     |
+| --------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1–7       | Admin creates company/bus/driver/route/variant/stops/schedule | `companies`/`fleet`/`routes` e2e suites + a live Playwright run that created a route/variant/stop through the real admin UI                                                                  |
+| 8–13      | Driver logs in, starts a trip, GPS reaches the backend        | Verified on a real emulator (Android SDK + AVD, not a simulated build): real login, a real `ACTIVE` trip row, a real GPS fix from FusedLocationProvider persisted server-side                |
+| 14–18, 23 | Passenger sees the route, stops, and a moving bus             | `apps/web/e2e/passenger.spec.ts` — real Playwright browser + the real GPS simulator + a real WebSocket connection, no mocks                                                                  |
+| 19–22     | Offline queueing and resync                                   | `LocationRepositoryTest` (write-before-send, batch retry-safety) + `locations.e2e-spec.ts`'s out-of-order-flush case. **Not** run as an airplane-mode cycle on a physical device — see below |
+| 24–25     | Admin inspects active/completed trips                         | `trips.e2e-spec.ts` + the admin live/trip-detail views (Phase 5)                                                                                                                             |
+
+**Test suites, all currently green:** 15 backend unit tests, 54 backend e2e/tenancy-conformance tests (CI-gated), 3 web unit tests, 2 Playwright browser e2e tests, 9 Android unit/instrumented tests (the instrumented one runs real Room/SQLite on-device, not a fake).
+
+**Documented exception — Phase 7's exit criterion.** Phase 7 asks for offline hardening "verified on a physical device over a real drive." No physical Android device is reachable from the environment this project was built in. What _was_ done instead, on a real AVD emulator (not a headless unit test): installed the built debug APK, logged in as a seeded driver, watched the app auto-start a trip against the live API, confirmed the foreground tracking service running, fed it a real GPS fix via the emulator's mock-location channel, and confirmed that fix landed in Postgres — then ended the trip and confirmed the app returned to a live assignment list. That is the closest verification obtainable without hardware — not a substitute for a multi-hour real drive through actual dead zones, and not claimed as one. Closing this line for real needs a person with a phone, a SIM, and a bus route — tracked here rather than left unstated.

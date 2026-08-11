@@ -1,0 +1,9 @@
+package com.tubus.driver.data.local
+
+import androidx.room.Database
+import androidx.room.RoomDatabase
+
+@Database(entities = [QueuedPointEntity::class], version = 1, exportSchema = false)
+abstract class AppDatabase : RoomDatabase() {
+    abstract fun queuedPointDao(): QueuedPointDao
+}
