@@ -1,5 +1,6 @@
 package com.tubus.driver.data.remote
 
+import com.tubus.driver.BuildConfig
 import com.tubus.driver.data.secure.TokenStore
 import com.tubus.driver.di.PlainClient
 import javax.inject.Inject
@@ -34,6 +35,7 @@ class TokenAuthenticator @Inject constructor(
             .toRequestBody("application/json".toMediaType())
         val request = Request.Builder()
             .url("${baseUrlProvider.get()}auth/refresh")
+            .header("X-Tenant-Host", BuildConfig.ADMIN_HOST)
             .post(body)
             .build()
 

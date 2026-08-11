@@ -25,6 +25,16 @@ android {
             "API_BASE_URL",
             "\"${project.findProperty("apiBaseUrl") ?: "http://10.0.2.2:8080/"}\"",
         )
+        // The app connects over a bare IP or `localhost`, which can never equal the
+        // platform's real admin hostname the way a production domain does — so it
+        // carries that hostname explicitly (mirrors the web app's dev-only
+        // X-Tenant-Host header; harmless in production, where the request's real Host
+        // header already matches and the backend ignores this header outside dev).
+        buildConfigField(
+            "String",
+            "ADMIN_HOST",
+            "\"${project.findProperty("adminHost") ?: "admin.tubus.localhost"}\"",
+        )
     }
 
     buildTypes {
