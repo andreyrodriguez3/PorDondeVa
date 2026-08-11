@@ -1,1 +1,35 @@
 .claude/settings.local.json
+
+# dependencies
+node_modules/
+android/.gradle/
+android/**/build/
+
+# build output
+dist/
+.next/
+out/
+build/
+
+# env
+.env
+.env.local
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# test / coverage
+coverage/
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# misc
+.DS_Store
+Thumbs.db
+

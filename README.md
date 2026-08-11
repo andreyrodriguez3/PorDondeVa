@@ -64,15 +64,15 @@ GPS fix ─► device queue ─► REST batch ─► location_points (history)
 
 ### Stack
 
-| Layer | Technology |
-|---|---|
-| Backend | TypeScript, Node.js, NestJS, Prisma |
-| Database | PostgreSQL 16 (GeoJSON in `jsonb`; PostGIS not required) |
-| Real-time | Socket.IO, in-process rooms |
-| Web | Next.js (App Router), React, Tailwind, MapLibre GL JS |
-| Driver app | Kotlin, Jetpack Compose, Hilt, Room, WorkManager |
-| Proxy / TLS | Caddy (automatic HTTPS, on-demand certificates) |
-| Local + production runtime | Docker Compose |
+| Layer                      | Technology                                               |
+| -------------------------- | -------------------------------------------------------- |
+| Backend                    | TypeScript, Node.js, NestJS, Prisma                      |
+| Database                   | PostgreSQL 16 (GeoJSON in `jsonb`; PostGIS not required) |
+| Real-time                  | Socket.IO, in-process rooms                              |
+| Web                        | Next.js (App Router), React, Tailwind, MapLibre GL JS    |
+| Driver app                 | Kotlin, Jetpack Compose, Hilt, Room, WorkManager         |
+| Proxy / TLS                | Caddy (automatic HTTPS, on-demand certificates)          |
+| Local + production runtime | Docker Compose                                           |
 
 There is no Redis, no message broker, no object storage, no cloud-provider dependency. Production runs on a single VPS.
 
@@ -153,11 +153,11 @@ pnpm db:seed
 
 Then open:
 
-| URL | What it is |
-|---|---|
-| `http://tuanrl.localhost:3000` | Passenger surface for the seeded company |
-| `http://admin.localhost:3000` | Admin dashboard |
-| `http://localhost:8080/healthz` | Backend liveness |
+| URL                             | What it is                               |
+| ------------------------------- | ---------------------------------------- |
+| `http://tuanrl.localhost:3000`  | Passenger surface for the seeded company |
+| `http://admin.localhost:3000`   | Admin dashboard                          |
+| `http://localhost:8080/healthz` | Backend liveness                         |
 
 Seed credentials are printed by `pnpm db:seed` and are development-only.
 
@@ -169,7 +169,7 @@ Seed credentials are printed by `pnpm db:seed` and are development-only.
 pnpm simulate --route sanjose-palmares --bus "Bus 24" --speed 60
 ```
 
-Open the route page and the marker moves. The seed data creates the company, an admin, an operator, drivers, buses, the route *San José → Palmares* with two directional variants and real polyline geometry, five stops, and a weekday schedule — so steps 1–7 of the MVP acceptance scenario are already satisfied when you start.
+Open the route page and the marker moves. The seed data creates the company, an admin, an operator, drivers, buses, the route _San José → Palmares_ with two directional variants and real polyline geometry, five stops, and a weekday schedule — so steps 1–7 of the MVP acceptance scenario are already satisfied when you start.
 
 ---
 
@@ -221,15 +221,15 @@ pnpm simulate --route sanjose-palmares --bus "Bus 24" \
               --drop-network-after 60 --reconnect-after 120
 ```
 
-| Flag | Meaning |
-|---|---|
-| `--route` | Route slug to follow |
-| `--variant` | Variant to use (defaults to the route's default variant) |
-| `--bus` | Bus label to run the trip on |
-| `--speed` | km/h along the route geometry |
-| `--interval` | Seconds between fixes |
-| `--drop-network-after` | Simulate losing connectivity after N seconds (buffers locally) |
-| `--reconnect-after` | Restore connectivity after N seconds and flush the buffer in order |
+| Flag                   | Meaning                                                            |
+| ---------------------- | ------------------------------------------------------------------ |
+| `--route`              | Route slug to follow                                               |
+| `--variant`            | Variant to use (defaults to the route's default variant)           |
+| `--bus`                | Bus label to run the trip on                                       |
+| `--speed`              | km/h along the route geometry                                      |
+| `--interval`           | Seconds between fixes                                              |
+| `--drop-network-after` | Simulate losing connectivity after N seconds (buffers locally)     |
+| `--reconnect-after`    | Restore connectivity after N seconds and flush the buffer in order |
 
 Run several instances concurrently to populate the admin live fleet map.
 
@@ -315,7 +315,7 @@ LocationEngine ──► Room queue ──► SyncWorker ──► API ──►
    (always)         (durable)     (when online)
 ```
 
-Every fix is written to the local database *before* any upload is attempted, so nothing is lost to a dropped request or a killed process. `SyncWorker` (WorkManager, network-constrained, exponential backoff from 10 s) drains the queue in chronological batches. The queue is capped at roughly 40 hours of tracking with oldest-first eviction and a logged warning. Device timestamps are preserved verbatim; the server records its own receipt time separately.
+Every fix is written to the local database _before_ any upload is attempted, so nothing is lost to a dropped request or a killed process. `SyncWorker` (WorkManager, network-constrained, exponential backoff from 10 s) drains the queue in chronological batches. The queue is capped at roughly 40 hours of tracking with oldest-first eviction and a logged warning. Device timestamps are preserved verbatim; the server records its own receipt time separately.
 
 The home screen always shows GPS state, connectivity, queue depth, and time of last successful sync, so a driver can see that tracking is working even with no signal.
 
@@ -350,33 +350,41 @@ When the backend accepts a location batch, it advances the trip's live-state row
 The public payload contains only what is safe to publish:
 
 ```jsonc
-{ "tripId": "…", "busLabel": "Bus 24", "headsign": "Hacia Palmares",
-  "lat": 9.9333, "lng": -84.0833, "bearingDeg": 271, "speedMps": 16.2,
-  "accuracyM": 8.4, "deviceTimestamp": "2026-08-10T14:02:11.482Z" }
+{
+  "tripId": "…",
+  "busLabel": "Bus 24",
+  "headsign": "Hacia Palmares",
+  "lat": 9.9333,
+  "lng": -84.0833,
+  "bearingDeg": 271,
+  "speedMps": 16.2,
+  "accuracyM": 8.4,
+  "deviceTimestamp": "2026-08-10T14:02:11.482Z",
+}
 ```
 
 Driver names, phone numbers, licence plates and internal identifiers are never sent to the public surface — the public API has its own controllers and its own DTOs, so there is no serializer that could leak them by accident.
 
 ### Movement and honesty
 
-A newly received position is animated from the marker's current position over the observed update interval, so movement reads as smooth rather than as a jump every few seconds. The animation only ever runs *between two positions the bus actually reported* — the marker is never extrapolated ahead of the last known fix. When accuracy is poor, an uncertainty circle is drawn instead of implying precision the GPS did not provide.
+A newly received position is animated from the marker's current position over the observed update interval, so movement reads as smooth rather than as a jump every few seconds. The animation only ever runs _between two positions the bus actually reported_ — the marker is never extrapolated ahead of the last known fix. When accuracy is poor, an uncertainty circle is drawn instead of implying precision the GPS did not provide.
 
 ### Freshness
 
 Every bus displays a state derived from the age of its newest device-reported fix, using per-company thresholds:
 
-| State | Default threshold | What the passenger sees |
-|---|---|---|
-| `LIVE` | ≤ 30 s | "En vivo · actualizado hace 4 segundos" |
-| `STALE` | 30 s – 3 min | "Actualizado hace 2 minutos" — marker stops animating |
-| `OFFLINE` | > 3 min | "Sin señal desde hace 5 minutos" — marker dimmed, still visible |
-| `COMPLETED` | — | Removed, after the trip ends |
+| State       | Default threshold | What the passenger sees                                         |
+| ----------- | ----------------- | --------------------------------------------------------------- |
+| `LIVE`      | ≤ 30 s            | "En vivo · actualizado hace 4 segundos"                         |
+| `STALE`     | 30 s – 3 min      | "Actualizado hace 2 minutos" — marker stops animating           |
+| `OFFLINE`   | > 3 min           | "Sin señal desde hace 5 minutos" — marker dimmed, still visible |
+| `COMPLETED` | —                 | Removed, after the trip ends                                    |
 
 A bus that loses signal never simply vanishes. If it reconnects and uploads its backlog, the newest fix it carries is recent, so it correctly returns to `LIVE` — and the intervening positions are added to the trip's history without dragging the visible marker backwards.
 
 ### Connection resilience
 
-The client reconnects automatically. On reconnect it refetches the REST snapshot *before* resuming the stream, so positions missed during the gap cannot leave a stale marker on screen. If the WebSocket cannot be established at all, the page falls back to polling `GET /api/v1/public/routes/:slug/live` every ten seconds. The passenger is told when the connection is degraded rather than being shown silently frozen data.
+The client reconnects automatically. On reconnect it refetches the REST snapshot _before_ resuming the stream, so positions missed during the gap cannot leave a stale marker on screen. If the WebSocket cannot be established at all, the page falls back to polling `GET /api/v1/public/routes/:slug/live` every ten seconds. The passenger is told when the connection is degraded rather than being shown silently frozen data.
 
 No account, no cookies, no tracking, no consent banner.
 
@@ -405,19 +413,19 @@ On the admin host the tenant comes from the authenticated session instead, and a
 Three layers, all server-side:
 
 1. **Explicit scoping.** Every service method that touches a tenant entity takes `companyId` as an argument. No repository reads it from ambient state, so a missing scope is visible when reading the code.
-2. **A fail-closed database guard.** A Prisma client extension intercepts queries against tenant-scoped models and *throws* if no `companyId` constraint is present. It deliberately does not inject one silently — silent injection hides mistakes, throwing surfaces them in development and in CI.
+2. **A fail-closed database guard.** A Prisma client extension intercepts queries against tenant-scoped models and _throws_ if no `companyId` constraint is present. It deliberately does not inject one silently — silent injection hides mistakes, throwing surfaces them in development and in CI.
 3. **A conformance test suite.** Every tenant-scoped endpoint is tested against another company's token, no token, and an insufficient role. Cross-tenant access must return **404**, not 403, so the API never confirms that another company's resource exists. This suite is a required CI gate; adding an endpoint without covering it fails the build.
 
 Public passenger endpoints are scoped by the resolved host and read from a separate set of controllers and DTOs. WebSocket rooms are keyed by company and route variant, and room membership is decided by the server from the socket's host — a client cannot subscribe its way into another company's data.
 
 ### Roles
 
-| Role | Scope |
-|---|---|
-| `SUPER_ADMIN` | Platform-level. Creates and suspends companies, manages domains. Cannot read tenant operational data. |
-| `COMPANY_ADMIN` | Full control of one company, including users and roles. |
-| `OPERATOR` | Read-only on configuration; can watch the live fleet and end or cancel trips. |
-| `DRIVER` | Own trips only: start, submit locations, end, report an incident. |
+| Role            | Scope                                                                                                 |
+| --------------- | ----------------------------------------------------------------------------------------------------- |
+| `SUPER_ADMIN`   | Platform-level. Creates and suspends companies, manages domains. Cannot read tenant operational data. |
+| `COMPANY_ADMIN` | Full control of one company, including users and roles.                                               |
+| `OPERATOR`      | Read-only on configuration; can watch the live fleet and end or cancel trips.                         |
+| `DRIVER`        | Own trips only: start, submit locations, end, report an incident.                                     |
 
 Passwords are hashed with argon2id. Authentication endpoints are rate-limited per IP and per account. All administrative mutations are written to an audit log with actor, entity, and source address.
 
@@ -454,18 +462,18 @@ The same mechanism covers `*.tubus.example` subdomains, so the platform needs **
 
 All configuration is by environment variable; `.env.example` documents every one. The backend refuses to start with a clear error if a required variable is missing — there are no silent defaults for secrets.
 
-| Variable | Purpose |
-|---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | Token signing |
-| `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL` | Token lifetimes |
-| `PLATFORM_DOMAIN` | Base domain for company subdomains |
-| `ADMIN_HOST` | Hostname serving the admin dashboard |
-| `PUBLIC_API_URL`, `NEXT_PUBLIC_WS_URL` | Browser-facing endpoints |
-| `NEXT_PUBLIC_MAP_STYLE_URL` | MapLibre style — the tile provider is swappable |
-| `LOCATION_RETENTION_DAYS` | Raw GPS retention (default 90) |
-| `TRIP_AUTO_END_MINUTES` | Auto-complete a silent trip (default 90) |
-| `RATE_LIMIT_*`, `LOG_LEVEL` | Throttling and logging |
+| Variable                                  | Purpose                                         |
+| ----------------------------------------- | ----------------------------------------------- |
+| `DATABASE_URL`                            | PostgreSQL connection string                    |
+| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | Token signing                                   |
+| `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL`   | Token lifetimes                                 |
+| `PLATFORM_DOMAIN`                         | Base domain for company subdomains              |
+| `ADMIN_HOST`                              | Hostname serving the admin dashboard            |
+| `PUBLIC_API_URL`, `NEXT_PUBLIC_WS_URL`    | Browser-facing endpoints                        |
+| `NEXT_PUBLIC_MAP_STYLE_URL`               | MapLibre style — the tile provider is swappable |
+| `LOCATION_RETENTION_DAYS`                 | Raw GPS retention (default 90)                  |
+| `TRIP_AUTO_END_MINUTES`                   | Auto-complete a silent trip (default 90)        |
+| `RATE_LIMIT_*`, `LOG_LEVEL`               | Throttling and logging                          |
 
 No secret is ever committed. Per-company operational settings — live and stale thresholds, branding, timezone — live in the database and are editable from the dashboard.
 

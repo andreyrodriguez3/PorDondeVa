@@ -1,0 +1,7 @@
+pnpm-lock.yaml
+**/dist/**
+**/.next/**
+**/node_modules/**
+**/coverage/**
+android/**
+apps/api/prisma/migrations/**
