@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
   changePasswordRequestSchema,
@@ -13,7 +13,7 @@ import {
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
-import { ZodBody } from '../common/zod/zod-body.decorator';
+import { ZodValidationPipe } from '../common/zod/zod-validation.pipe';
 import type { JwtPayload } from './token.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 
@@ -27,27 +27,27 @@ export class AuthController {
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('login')
-  login(@ZodBody(webLoginRequestSchema) body: WebLoginRequest) {
+  login(@Body(new ZodValidationPipe(webLoginRequestSchema)) body: WebLoginRequest) {
     return this.auth.loginWithEmail(body.email, body.password);
   }
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('driver/login')
-  driverLogin(@ZodBody(driverLoginRequestSchema) body: DriverLoginRequest) {
+  driverLogin(@Body(new ZodValidationPipe(driverLoginRequestSchema)) body: DriverLoginRequest) {
     return this.auth.loginAsDriver(body.companyCode, body.username, body.password);
   }
 
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('refresh')
-  refresh(@ZodBody(refreshRequestSchema) body: RefreshRequest) {
+  refresh(@Body(new ZodValidationPipe(refreshRequestSchema)) body: RefreshRequest) {
     return this.auth.refresh(body.refreshToken);
   }
 
   @HttpCode(HttpStatus.NO_CONTENT)
   @Post('logout')
-  async logout(@ZodBody(refreshRequestSchema) body: RefreshRequest) {
+  async logout(@Body(new ZodValidationPipe(refreshRequestSchema)) body: RefreshRequest) {
     await this.auth.logout(body.refreshToken);
   }
 
@@ -70,7 +70,7 @@ export class AuthController {
   @Post('change-password')
   async changePassword(
     @CurrentUser() user: JwtPayload,
-    @ZodBody(changePasswordRequestSchema) body: ChangePasswordRequest,
+    @Body(new ZodValidationPipe(changePasswordRequestSchema)) body: ChangePasswordRequest,
   ) {
     await this.auth.changePassword(user.sub, body.currentPassword, body.newPassword);
   }

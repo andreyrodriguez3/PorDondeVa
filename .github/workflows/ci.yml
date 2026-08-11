@@ -24,6 +24,12 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://tubus:tubus@localhost:5432/tubus_test?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-not-for-production-use
+      JWT_REFRESH_SECRET: ci-refresh-secret-not-for-production-use
+      ACCESS_TOKEN_TTL: 15m
+      REFRESH_TOKEN_TTL: 30d
+      PLATFORM_DOMAIN: tubus.example
+      ADMIN_HOST: admin.tubus.example
     steps:
       - uses: actions/checkout@v4
 
@@ -48,5 +54,17 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Test
+      - name: Create required Postgres extensions
+        run: psql "$DATABASE_URL" -c 'CREATE EXTENSION IF NOT EXISTS citext;'
+
+      - name: Apply database migrations
+        run: pnpm --filter api exec prisma migrate deploy
+
+      - name: Unit test
         run: pnpm test
+
+      - name: Tenancy conformance suite
+        run: pnpm --filter api run test:tenancy
+
+      - name: End-to-end test
+        run: pnpm --filter api run test:e2e

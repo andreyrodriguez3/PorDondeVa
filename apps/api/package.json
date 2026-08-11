@@ -9,8 +9,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:tenancy": "jest --testPathPattern=test/tenancy",
-    "test:e2e": "jest --config jest.e2e.config.js",
+    "test:tenancy": "jest --config jest.e2e.config.js --runInBand --testPathPattern=test/tenancy",
+    "test:e2e": "jest --config jest.e2e.config.js --runInBand",
     "prisma:generate": "prisma generate"
   },
   "prisma": {
