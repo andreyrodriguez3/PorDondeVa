@@ -18,6 +18,9 @@ import { TripsModule } from './trips/trips.module';
 import { LocationsModule } from './locations/locations.module';
 import { LiveModule } from './live/live.module';
 import { PublicModule } from './public/public.module';
+import { MaintenanceModule } from './maintenance/maintenance.module';
+import { QrModule } from './qr/qr.module';
+import { CompaniesModule } from './companies/companies.module';
 
 @Module({
   imports: [
@@ -47,6 +50,9 @@ import { PublicModule } from './public/public.module';
     LocationsModule,
     LiveModule,
     PublicModule,
+    MaintenanceModule,
+    QrModule,
+    CompaniesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
