@@ -7,6 +7,7 @@ export type BusLiveState = z.infer<typeof busStateSchema>;
 // passenger live tracking works"). Safe to broadcast to an unauthenticated socket.
 export const publicBusUpdateSchema = z.object({
   tripId: z.string().uuid(),
+  routeVariantId: z.string().uuid(),
   busLabel: z.string(),
   headsign: z.string(),
   lat: z.number(),

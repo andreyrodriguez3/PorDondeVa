@@ -124,6 +124,7 @@ export class LocationsService {
       const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
       this.liveGateway.emitBusUpdate(companyId, trip.routeVariantId, {
         tripId,
+        routeVariantId: trip.routeVariantId,
         busLabel: trip.bus.label,
         headsign: trip.variant.headsign,
         lat: p.point.lat,

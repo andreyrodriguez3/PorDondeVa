@@ -46,6 +46,7 @@ export class LiveService {
 function toPublicUpdate(
   state: {
     tripId: string;
+    routeVariantId: string;
     latitude: number;
     longitude: number;
     bearingDeg: number | null;
@@ -60,6 +61,7 @@ function toPublicUpdate(
 ): PublicBusUpdate {
   return {
     tripId: state.tripId,
+    routeVariantId: state.routeVariantId,
     busLabel,
     headsign,
     lat: state.latitude,
