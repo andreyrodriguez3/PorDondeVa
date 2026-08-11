@@ -1,0 +1,24 @@
+# Code Style
+
+- All source code, identifiers, filenames and technical documentation must be in English.
+- User-facing passenger/company text may be Spanish.
+- Prefer simple and explicit code over clever abstractions.
+- Do not introduce a dependency unless it solves a real problem.
+- Do not introduce infrastructure that is not required by the current MVP.
+- Keep modules cohesive and responsibilities clear.
+- Follow the conventions of the selected framework.
+- Format code before every significant commit.
+- Run relevant tests before every significant commit.
+- Comments should explain why, not what.
+- Avoid comments that merely restate the code.
+- Do not leave vague TODO comments.
+- If future work is necessary, track it in ROADMAP.md.
+- Never hardcode credentials or secrets.
+- Validate external input.
+- Handle errors explicitly.
+- Do not silently swallow exceptions.
+- Do not modify unrelated files.
+- Preserve existing architecture unless the specification or implementation requires a change.
+- Keep the code production-quality while keeping infrastructure MVP-sized.
+- Prefer maintainability over premature optimization.
+- Use conventional commits.
