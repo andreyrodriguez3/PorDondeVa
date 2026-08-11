@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TuBus Conductor</string>
+    <string name="tracking_notification_channel">Rastreo activo</string>
+    <string name="tracking_notification_title">Viaje activo</string>
+    <string name="tracking_notification_text">Transmitiendo tu ubicación</string>
+</resources>

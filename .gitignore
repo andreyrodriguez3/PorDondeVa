@@ -4,6 +4,11 @@
 node_modules/
 android/.gradle/
 android/**/build/
+android/local.properties
+android/.idea/
+android/**/.cxx/
+*.jks
+*.keystore
 
 # build output
 dist/
