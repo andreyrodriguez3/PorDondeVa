@@ -649,4 +649,20 @@ This roadmap is ready for implementation. The specification has been reviewed se
 
 Phase 0 can begin. The first decision that cannot be deferred past Phase 1 is A19/A20 — driver login identity and company creation both touch the schema, and changing them after the migration exists costs more than settling them now.
 
-_No code has been written._
+---
+
+## 17. Implementation status
+
+All ten phases are implemented and committed. §43's 25-step Definition of Done:
+
+| Steps     | What                                                          | Evidence                                                                                                                                                                                     |
+| --------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1–7       | Admin creates company/bus/driver/route/variant/stops/schedule | `companies`/`fleet`/`routes` e2e suites + a live Playwright run that created a route/variant/stop through the real admin UI                                                                  |
+| 8–13      | Driver logs in, starts a trip, GPS reaches the backend        | Verified on a real emulator (Android SDK + AVD, not a simulated build): real login, a real `ACTIVE` trip row, a real GPS fix from FusedLocationProvider persisted server-side                |
+| 14–18, 23 | Passenger sees the route, stops, and a moving bus             | `apps/web/e2e/passenger.spec.ts` — real Playwright browser + the real GPS simulator + a real WebSocket connection, no mocks                                                                  |
+| 19–22     | Offline queueing and resync                                   | `LocationRepositoryTest` (write-before-send, batch retry-safety) + `locations.e2e-spec.ts`'s out-of-order-flush case. **Not** run as an airplane-mode cycle on a physical device — see below |
+| 24–25     | Admin inspects active/completed trips                         | `trips.e2e-spec.ts` + the admin live/trip-detail views (Phase 5)                                                                                                                             |
+
+**Test suites, all currently green:** 15 backend unit tests, 54 backend e2e/tenancy-conformance tests (CI-gated), 3 web unit tests, 2 Playwright browser e2e tests, 9 Android unit/instrumented tests (the instrumented one runs real Room/SQLite on-device, not a fake).
+
+**Documented exception — Phase 7's exit criterion.** Phase 7 asks for offline hardening "verified on a physical device over a real drive." No physical Android device is reachable from the environment this project was built in. What _was_ done instead, on a real AVD emulator (not a headless unit test): installed the built debug APK, logged in as a seeded driver, watched the app auto-start a trip against the live API, confirmed the foreground tracking service running, fed it a real GPS fix via the emulator's mock-location channel, and confirmed that fix landed in Postgres — then ended the trip and confirmed the app returned to a live assignment list. That is the closest verification obtainable without hardware — not a substitute for a multi-hour real drive through actual dead zones, and not claimed as one. Closing this line for real needs a person with a phone, a SIM, and a bus route — tracked here rather than left unstated.
