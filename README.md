@@ -146,6 +146,7 @@ Docker Desktop (or Docker Engine + Compose), Node.js 20+, pnpm 9+. For the drive
 git clone <repo> tubus && cd tubus
 cp .env.example .env
 pnpm install
+pnpm build:contracts   # compiles packages/contracts once; rerun after editing it
 docker compose up -d
 pnpm db:migrate
 pnpm db:seed
@@ -496,6 +497,8 @@ cd android && ./gradlew test connectedAndroidTest
 ```
 
 The pipeline test drives the simulator programmatically and asserts that points persist, live state advances, WebSocket events arrive, a replayed batch changes nothing, and an out-of-order offline flush does not move the marker backwards. `docs/runbook.md` also carries the manual checklist that automation cannot cover: a real drive, a tunnel, airplane mode mid-trip, a reboot mid-trip, and battery drain across a full shift.
+
+The Playwright suite (`apps/web/e2e/`) exercises two smoke flows against the real stack — no mocks: a passenger watching a GPS-simulated bus move on the route page, and an admin creating a route/variant/stop through the UI and seeing it on the public page. It needs Postgres reachable, migrations applied, and the database seeded (`pnpm db:migrate && pnpm db:seed`) before running; it drives its own API and web dev servers via `playwright.config.ts`'s `webServer` entries. Run once with `npx playwright install chromium` first. It is not wired into CI (it needs a full running stack, not just a database) — run it locally before a release.
 
 CI runs lint, typecheck, tests, and the tenancy conformance suite on every push.
 

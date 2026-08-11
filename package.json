@@ -19,6 +19,7 @@
     "db:studio": "pnpm --filter api exec prisma studio",
     "db:reset": "pnpm --filter api exec prisma migrate reset",
     "simulate": "pnpm --filter @tubus/simulator start --",
+    "build:contracts": "pnpm --filter @tubus/contracts run build",
     "prepare": "husky"
   },
   "devDependencies": {

@@ -32,8 +32,11 @@ describe('Tenancy conformance', () => {
   });
 
   it('returns 404 for a hostname with no matching company domain', async () => {
+    // /public/company is the real tenant-resolved endpoint (README.md — "How
+    // multi-tenancy works"); /healthz and /readyz are deliberately exempt from host
+    // resolution so infrastructure health checks work with no tenant header at all.
     await request(app.getHttpServer())
-      .get('/healthz')
+      .get('/public/company')
       .set('X-Tenant-Host', 'unknown-company.example.com')
       .expect(404);
   });
@@ -45,9 +48,13 @@ describe('Tenancy conformance', () => {
     });
 
     await request(app.getHttpServer())
-      .get('/healthz')
+      .get('/public/company')
       .set('X-Tenant-Host', domain.hostname)
       .expect(200);
+  });
+
+  it('/healthz and /readyz respond with no tenant host at all', async () => {
+    await request(app.getHttpServer()).get('/healthz').expect(200);
   });
 
   it("does not let company A's admin token read company B's user record via /auth/me", async () => {
