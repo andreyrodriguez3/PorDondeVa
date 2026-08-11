@@ -9,6 +9,11 @@ import { PrismaModule } from './common/prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { TenancyModule } from './tenancy/tenancy.module';
 import { HealthModule } from './health/health.module';
+import { BusesModule } from './buses/buses.module';
+import { DriversModule } from './drivers/drivers.module';
+import { RoutesModule } from './routes/routes.module';
+import { StopsModule } from './stops/stops.module';
+import { SchedulesModule } from './schedules/schedules.module';
 
 @Module({
   imports: [
@@ -29,6 +34,11 @@ import { HealthModule } from './health/health.module';
     TenancyModule,
     AuthModule,
     HealthModule,
+    BusesModule,
+    DriversModule,
+    RoutesModule,
+    StopsModule,
+    SchedulesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

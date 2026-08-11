@@ -37,6 +37,7 @@ export async function seedCompanyWithUsers(prisma: PrismaService) {
       name: 'Fixture Driver',
       role: 'DRIVER',
       passwordHash,
+      driverProfile: { create: { companyId: company.id } },
     },
   });
 

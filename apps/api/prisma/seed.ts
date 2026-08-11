@@ -143,45 +143,43 @@ async function main() {
     },
   });
 
-  const outbound = await prisma.routeVariant.upsert({
-    where: { id: `${route.id}-outbound` },
-    update: {},
-    create: {
-      id: `${route.id}-outbound`,
-      companyId: company.id,
-      routeId: route.id,
-      name: 'Vía Grecia (hacia Palmares)',
-      direction: 'OUTBOUND',
-      headsign: 'Hacia Palmares',
-      geometry: OUTBOUND_GEOMETRY,
-      isDefault: true,
-      status: 'ACTIVE',
-    },
-  });
+  const outbound =
+    (await prisma.routeVariant.findFirst({
+      where: { routeId: route.id, direction: 'OUTBOUND' },
+    })) ??
+    (await prisma.routeVariant.create({
+      data: {
+        companyId: company.id,
+        routeId: route.id,
+        name: 'Vía Grecia (hacia Palmares)',
+        direction: 'OUTBOUND',
+        headsign: 'Hacia Palmares',
+        geometry: OUTBOUND_GEOMETRY,
+        isDefault: true,
+        status: 'ACTIVE',
+      },
+    }));
 
-  const inbound = await prisma.routeVariant.upsert({
-    where: { id: `${route.id}-inbound` },
-    update: {},
-    create: {
-      id: `${route.id}-inbound`,
-      companyId: company.id,
-      routeId: route.id,
-      name: 'Vía Grecia (hacia San José)',
-      direction: 'INBOUND',
-      headsign: 'Hacia San José',
-      geometry: INBOUND_GEOMETRY,
-      isDefault: false,
-      status: 'ACTIVE',
-    },
-  });
+  const inbound =
+    (await prisma.routeVariant.findFirst({ where: { routeId: route.id, direction: 'INBOUND' } })) ??
+    (await prisma.routeVariant.create({
+      data: {
+        companyId: company.id,
+        routeId: route.id,
+        name: 'Vía Grecia (hacia San José)',
+        direction: 'INBOUND',
+        headsign: 'Hacia San José',
+        geometry: INBOUND_GEOMETRY,
+        isDefault: false,
+        status: 'ACTIVE',
+      },
+    }));
 
   const stops = [];
   for (const stopData of STOPS) {
-    const stop = await prisma.stop.upsert({
-      where: { id: `${company.id}-${stopData.name}` },
-      update: {},
-      create: { id: `${company.id}-${stopData.name}`, companyId: company.id, ...stopData },
-    });
+    const stop =
+      (await prisma.stop.findFirst({ where: { companyId: company.id, name: stopData.name } })) ??
+      (await prisma.stop.create({ data: { companyId: company.id, ...stopData } }));
     stops.push(stop);
   }
 
@@ -207,18 +205,20 @@ async function main() {
   for (const hour of [6, 7, 8]) {
     const departureTime = new Date(baseDate);
     departureTime.setUTCHours(hour, 0, 0, 0);
-    await prisma.schedule.upsert({
-      where: { id: `${outbound.id}-${hour}` },
-      update: {},
-      create: {
-        id: `${outbound.id}-${hour}`,
-        companyId: company.id,
-        routeVariantId: outbound.id,
-        departureTime,
-        daysOfWeek: [1, 2, 3, 4, 5],
-        active: true,
-      },
+    const existing = await prisma.schedule.findFirst({
+      where: { routeVariantId: outbound.id, departureTime },
     });
+    if (!existing) {
+      await prisma.schedule.create({
+        data: {
+          companyId: company.id,
+          routeVariantId: outbound.id,
+          departureTime,
+          daysOfWeek: [1, 2, 3, 4, 5],
+          active: true,
+        },
+      });
+    }
   }
 
   console.log('Seed complete.');

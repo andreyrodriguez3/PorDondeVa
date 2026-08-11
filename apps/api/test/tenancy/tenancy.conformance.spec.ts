@@ -70,4 +70,83 @@ describe('Tenancy conformance', () => {
     // This case documents that invariant rather than probing a parameter that doesn't exist.
     expect(res.body.companyId).toBe(adminA.companyId);
   });
+
+  /**
+   * Phase 2 domain CRUD (buses/routes/variants/stops/schedules). Each entry names a
+   * factory that creates one row in company A and the `GET` path to fetch it by id —
+   * every one must 404 for company B's admin, never 403.
+   */
+  it("returns 404 (not 403) for every Phase 2 resource when fetched with another company's token", async () => {
+    const companyA = await seedCompanyWithUsers(prisma);
+    const companyB = await seedSecondCompany(prisma);
+    const tokenB = await request(app.getHttpServer())
+      .post('/auth/login')
+      .set('X-Tenant-Host', 'admin.tubus.example')
+      .send({ email: companyB.admin.email, password: FIXTURE_PASSWORD })
+      .then((res) => res.body.tokens.accessToken);
+
+    const bus = await prisma.bus.create({
+      data: { companyId: companyA.company.id, label: 'Bus 1' },
+    });
+    const route = await prisma.route.create({
+      data: {
+        companyId: companyA.company.id,
+        name: 'R',
+        originLabel: 'A',
+        destinationLabel: 'B',
+        publicSlug: 'conformance-route',
+      },
+    });
+    const variant = await prisma.routeVariant.create({
+      data: {
+        companyId: companyA.company.id,
+        routeId: route.id,
+        name: 'V',
+        direction: 'OUTBOUND',
+        headsign: 'H',
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [0, 0],
+            [1, 1],
+          ],
+        },
+      },
+    });
+    const stop = await prisma.stop.create({
+      data: { companyId: companyA.company.id, name: 'S', latitude: 1, longitude: 1 },
+    });
+    const schedule = await prisma.schedule.create({
+      data: {
+        companyId: companyA.company.id,
+        routeVariantId: variant.id,
+        departureTime: new Date('1970-01-01T06:00:00Z'),
+        daysOfWeek: [1],
+      },
+    });
+
+    const paths = [
+      `/buses/${bus.id}`,
+      `/drivers/${companyA.driver.id}`,
+      `/routes/${route.id}`,
+      `/variants/${variant.id}`,
+      `/stops/${stop.id}`,
+    ];
+
+    for (const path of paths) {
+      await request(app.getHttpServer())
+        .get(path)
+        .set('X-Tenant-Host', 'admin.tubus.example')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .expect(404);
+    }
+
+    // Schedules have no single-resource GET; PATCH is the only owner-checked mutation.
+    await request(app.getHttpServer())
+      .patch(`/schedules/${schedule.id}`)
+      .set('X-Tenant-Host', 'admin.tubus.example')
+      .set('Authorization', `Bearer ${tokenB}`)
+      .send({ active: false })
+      .expect(404);
+  });
 });
