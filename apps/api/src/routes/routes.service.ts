@@ -82,6 +82,14 @@ export class RoutesService {
       });
     }
 
+    // A route with no default variant renders no stops and no direction on the
+    // public page (A23) — the first variant a route gets is the default one whether
+    // or not the caller asked for it, so that state is never reachable through the UI.
+    const existingCount = await this.prisma.scoped.routeVariant.count({
+      where: { companyId, routeId },
+    });
+    const isDefault = dto.isDefault ?? existingCount === 0;
+
     const variant = await this.prisma.scoped.routeVariant.create({
       data: {
         companyId,
@@ -90,7 +98,7 @@ export class RoutesService {
         direction: dto.direction,
         headsign: dto.headsign,
         geometry: dto.geometry,
-        isDefault: dto.isDefault ?? false,
+        isDefault,
       },
     });
     return toVariantResponse(variant);
