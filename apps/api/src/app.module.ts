@@ -14,6 +14,10 @@ import { DriversModule } from './drivers/drivers.module';
 import { RoutesModule } from './routes/routes.module';
 import { StopsModule } from './stops/stops.module';
 import { SchedulesModule } from './schedules/schedules.module';
+import { TripsModule } from './trips/trips.module';
+import { LocationsModule } from './locations/locations.module';
+import { LiveModule } from './live/live.module';
+import { PublicModule } from './public/public.module';
 
 @Module({
   imports: [
@@ -39,6 +43,10 @@ import { SchedulesModule } from './schedules/schedules.module';
     RoutesModule,
     StopsModule,
     SchedulesModule,
+    TripsModule,
+    LocationsModule,
+    LiveModule,
+    PublicModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

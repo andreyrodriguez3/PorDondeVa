@@ -4,3 +4,7 @@ export * from './auth';
 export * from './fleet';
 export * from './routes';
 export * from './drivers';
+export * from './locations';
+export * from './trips';
+export * from './live';
+export * from './public';

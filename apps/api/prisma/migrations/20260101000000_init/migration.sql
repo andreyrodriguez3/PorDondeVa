@@ -45,8 +45,8 @@ CREATE TABLE "companies" (
     "status" "CompanyStatus" NOT NULL DEFAULT 'ACTIVE',
     "live_threshold_seconds" INTEGER NOT NULL DEFAULT 30,
     "stale_threshold_seconds" INTEGER NOT NULL DEFAULT 180,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "companies_pkey" PRIMARY KEY ("id")
 );
@@ -58,8 +58,8 @@ CREATE TABLE "company_domains" (
     "hostname" CITEXT NOT NULL,
     "kind" "DomainKind" NOT NULL,
     "is_primary" BOOLEAN NOT NULL DEFAULT false,
-    "verified_at" TIMESTAMP(3),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "verified_at" TIMESTAMPTZ(3),
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "company_domains_pkey" PRIMARY KEY ("id")
 );
@@ -75,9 +75,9 @@ CREATE TABLE "users" (
     "name" TEXT NOT NULL,
     "role" "UserRole" NOT NULL,
     "status" "UserStatus" NOT NULL DEFAULT 'ACTIVE',
-    "last_login_at" TIMESTAMP(3),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "last_login_at" TIMESTAMPTZ(3),
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
@@ -100,9 +100,9 @@ CREATE TABLE "refresh_tokens" (
     "user_id" TEXT NOT NULL,
     "token_hash" TEXT NOT NULL,
     "device_label" TEXT,
-    "expires_at" TIMESTAMP(3) NOT NULL,
-    "revoked_at" TIMESTAMP(3),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expires_at" TIMESTAMPTZ(3) NOT NULL,
+    "revoked_at" TIMESTAMPTZ(3),
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "refresh_tokens_pkey" PRIMARY KEY ("id")
 );
@@ -114,8 +114,8 @@ CREATE TABLE "buses" (
     "label" TEXT NOT NULL,
     "license_plate" TEXT,
     "status" "BusStatus" NOT NULL DEFAULT 'ACTIVE',
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "buses_pkey" PRIMARY KEY ("id")
 );
@@ -129,8 +129,8 @@ CREATE TABLE "routes" (
     "destination_label" TEXT NOT NULL,
     "public_slug" CITEXT NOT NULL,
     "status" "RouteStatus" NOT NULL DEFAULT 'ACTIVE',
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "routes_pkey" PRIMARY KEY ("id")
 );
@@ -146,8 +146,8 @@ CREATE TABLE "route_variants" (
     "geometry" JSONB NOT NULL,
     "is_default" BOOLEAN NOT NULL DEFAULT false,
     "status" "RouteStatus" NOT NULL DEFAULT 'ACTIVE',
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "route_variants_pkey" PRIMARY KEY ("id")
 );
@@ -159,8 +159,8 @@ CREATE TABLE "stops" (
     "name" TEXT NOT NULL,
     "latitude" DOUBLE PRECISION NOT NULL,
     "longitude" DOUBLE PRECISION NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "stops_pkey" PRIMARY KEY ("id")
 );
@@ -184,8 +184,8 @@ CREATE TABLE "schedules" (
     "departure_time" TIME NOT NULL,
     "days_of_week" INTEGER[],
     "active" BOOLEAN NOT NULL DEFAULT true,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "schedules_pkey" PRIMARY KEY ("id")
 );
@@ -200,13 +200,13 @@ CREATE TABLE "trips" (
     "bus_id" TEXT NOT NULL,
     "driver_user_id" TEXT NOT NULL,
     "status" "TripStatus" NOT NULL DEFAULT 'ACTIVE',
-    "scheduled_departure_at" TIMESTAMP(3),
-    "started_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "ended_at" TIMESTAMP(3),
+    "scheduled_departure_at" TIMESTAMPTZ(3),
+    "started_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "ended_at" TIMESTAMPTZ(3),
     "end_reason" "TripEndReason",
     "rejected_point_count" INTEGER NOT NULL DEFAULT 0,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "trips_pkey" PRIMARY KEY ("id")
 );
@@ -222,8 +222,8 @@ CREATE TABLE "location_points" (
     "accuracy_m" DOUBLE PRECISION,
     "speed_mps" DOUBLE PRECISION,
     "bearing_deg" DOUBLE PRECISION,
-    "device_timestamp" TIMESTAMP(3) NOT NULL,
-    "server_timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "device_timestamp" TIMESTAMPTZ(3) NOT NULL,
+    "server_timestamp" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "location_points_pkey" PRIMARY KEY ("id")
 );
@@ -240,9 +240,9 @@ CREATE TABLE "trip_live_states" (
     "accuracy_m" DOUBLE PRECISION,
     "speed_mps" DOUBLE PRECISION,
     "bearing_deg" DOUBLE PRECISION,
-    "device_timestamp" TIMESTAMP(3) NOT NULL,
-    "server_timestamp" TIMESTAMP(3) NOT NULL,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "device_timestamp" TIMESTAMPTZ(3) NOT NULL,
+    "server_timestamp" TIMESTAMPTZ(3) NOT NULL,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "trip_live_states_pkey" PRIMARY KEY ("trip_id")
 );
@@ -255,7 +255,7 @@ CREATE TABLE "trip_incidents" (
     "reported_by_user_id" TEXT NOT NULL,
     "category" "IncidentCategory" NOT NULL,
     "note" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "trip_incidents_pkey" PRIMARY KEY ("id")
 );
@@ -270,7 +270,7 @@ CREATE TABLE "audit_logs" (
     "entity_id" TEXT NOT NULL,
     "metadata" JSONB,
     "ip" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
 );
@@ -479,5 +479,4 @@ ALTER TABLE "schedules" ADD CONSTRAINT "schedules_days_of_week_valid"
     cardinality("days_of_week") > 0
     AND "days_of_week" <@ ARRAY[0, 1, 2, 3, 4, 5, 6]
   );
-
 

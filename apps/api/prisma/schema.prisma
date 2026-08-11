@@ -87,8 +87,8 @@ model Company {
   status                CompanyStatus @default(ACTIVE)
   liveThresholdSeconds  Int           @default(30) @map("live_threshold_seconds")
   staleThresholdSeconds Int           @default(180) @map("stale_threshold_seconds")
-  createdAt             DateTime      @default(now()) @map("created_at")
-  updatedAt             DateTime      @updatedAt @map("updated_at")
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   domains        CompanyDomain[]
   users          User[]
@@ -114,8 +114,8 @@ model CompanyDomain {
   hostname   String     @unique @db.Citext
   kind       DomainKind
   isPrimary  Boolean    @default(false) @map("is_primary")
-  verifiedAt DateTime?  @map("verified_at")
-  createdAt  DateTime   @default(now()) @map("created_at")
+  verifiedAt DateTime?  @map("verified_at") @db.Timestamptz(3)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -135,9 +135,9 @@ model User {
   name               String
   role               UserRole
   status             UserStatus @default(ACTIVE)
-  lastLoginAt        DateTime?  @map("last_login_at")
-  createdAt          DateTime   @default(now()) @map("created_at")
-  updatedAt          DateTime   @updatedAt @map("updated_at")
+  lastLoginAt        DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company       Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   driverProfile DriverProfile?
@@ -172,9 +172,9 @@ model RefreshToken {
   userId      String    @map("user_id")
   tokenHash   String    @unique @map("token_hash")
   deviceLabel String?   @map("device_label")
-  expiresAt   DateTime  @map("expires_at")
-  revokedAt   DateTime? @map("revoked_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -190,8 +190,8 @@ model Bus {
   label        String
   licensePlate String?   @map("license_plate")
   status       BusStatus @default(ACTIVE)
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   driverProfiles DriverProfile[]
@@ -212,8 +212,8 @@ model Route {
   destinationLabel String      @map("destination_label")
   publicSlug       String      @map("public_slug") @db.Citext
   status           RouteStatus @default(ACTIVE)
-  createdAt        DateTime    @default(now()) @map("created_at")
-  updatedAt        DateTime    @updatedAt @map("updated_at")
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company    Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   variants   RouteVariant[]
@@ -234,8 +234,8 @@ model RouteVariant {
   geometry  Json
   isDefault Boolean          @default(false) @map("is_default")
   status    RouteStatus      @default(ACTIVE)
-  createdAt DateTime         @default(now()) @map("created_at")
-  updatedAt DateTime         @updatedAt @map("updated_at")
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company    Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   route      Route              @relation(fields: [routeId], references: [id], onDelete: Cascade)
@@ -254,8 +254,8 @@ model Stop {
   name      String
   latitude  Float
   longitude Float
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   variantStops RouteVariantStop[]
@@ -287,8 +287,8 @@ model Schedule {
   departureTime  DateTime @map("departure_time") @db.Time()
   daysOfWeek     Int[]    @map("days_of_week")
   active         Boolean  @default(true)
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   variant RouteVariant @relation(fields: [routeVariantId], references: [id], onDelete: Cascade)
@@ -309,13 +309,13 @@ model Trip {
   busId                String         @map("bus_id")
   driverUserId         String         @map("driver_user_id")
   status               TripStatus     @default(ACTIVE)
-  scheduledDepartureAt DateTime?      @map("scheduled_departure_at")
-  startedAt            DateTime       @default(now()) @map("started_at")
-  endedAt              DateTime?      @map("ended_at")
+  scheduledDepartureAt DateTime?      @map("scheduled_departure_at") @db.Timestamptz(3)
+  startedAt            DateTime       @default(now()) @map("started_at") @db.Timestamptz(3)
+  endedAt              DateTime?      @map("ended_at") @db.Timestamptz(3)
   endReason            TripEndReason? @map("end_reason")
   rejectedPointCount   Int            @default(0) @map("rejected_point_count")
-  createdAt            DateTime       @default(now()) @map("created_at")
-  updatedAt            DateTime       @updatedAt @map("updated_at")
+  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company  Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   route    Route        @relation(fields: [routeId], references: [id], onDelete: Cascade)
@@ -345,8 +345,8 @@ model LocationPoint {
   accuracyM       Float?   @map("accuracy_m")
   speedMps        Float?   @map("speed_mps")
   bearingDeg      Float?   @map("bearing_deg")
-  deviceTimestamp DateTime @map("device_timestamp")
-  serverTimestamp DateTime @default(now()) @map("server_timestamp")
+  deviceTimestamp DateTime @map("device_timestamp") @db.Timestamptz(3)
+  serverTimestamp DateTime @default(now()) @map("server_timestamp") @db.Timestamptz(3)
 
   trip    Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -368,9 +368,9 @@ model TripLiveState {
   accuracyM       Float?   @map("accuracy_m")
   speedMps        Float?   @map("speed_mps")
   bearingDeg      Float?   @map("bearing_deg")
-  deviceTimestamp DateTime @map("device_timestamp")
-  serverTimestamp DateTime @map("server_timestamp")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  deviceTimestamp DateTime @map("device_timestamp") @db.Timestamptz(3)
+  serverTimestamp DateTime @map("server_timestamp") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   trip    Trip         @relation(fields: [tripId], references: [id], onDelete: Cascade)
   company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -390,7 +390,7 @@ model TripIncident {
   reportedByUserId String           @map("reported_by_user_id")
   category         IncidentCategory
   note             String?
-  createdAt        DateTime         @default(now()) @map("created_at")
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
 
   company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   trip       Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
@@ -408,7 +408,7 @@ model AuditLog {
   entityId    String   @map("entity_id")
   metadata    Json?
   ip          String?
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
   actor   User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
