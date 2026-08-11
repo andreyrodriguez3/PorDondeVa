@@ -1,0 +1,37 @@
+{
+	# One TLS cert per matched hostname, on demand, gated by the ask endpoint below.
+	on_demand_tls {
+		ask http://api:8080/api/v1/public/domains/allowed
+	}
+}
+
+# The admin dashboard lives on exactly one fixed hostname (D5) — never a wildcard or
+# customer-controlled domain, so its session cookies can never leak to a domain a
+# customer repoints.
+{$ADMIN_HOST} {
+	reverse_proxy /api/* api:8080
+	reverse_proxy /socket.io/* api:8080
+	reverse_proxy web:3000
+}
+
+# Every platform subdomain (*.{$PLATFORM_DOMAIN}) and every verified custom domain
+# reach this same block. Caddy's on-demand TLS asks the API whether the hostname is
+# known before ever requesting a certificate for it (D17) — no wildcard certificate
+# and no DNS provider API credentials are needed for either case.
+*.{$PLATFORM_DOMAIN} {
+	tls {
+		on_demand
+	}
+	reverse_proxy /api/* api:8080
+	reverse_proxy /socket.io/* api:8080
+	reverse_proxy web:3000
+}
+
+:443 {
+	tls {
+		on_demand
+	}
+	reverse_proxy /api/* api:8080
+	reverse_proxy /socket.io/* api:8080
+	reverse_proxy web:3000
+}
