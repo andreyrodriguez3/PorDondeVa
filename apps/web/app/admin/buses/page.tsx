@@ -4,6 +4,30 @@ import { useEffect, useState } from 'react';
 import type { BusResponse } from '@tubus/contracts';
 import { adminFetch } from '@/lib/adminAuth';
 import { AdminShell } from '@/components/admin/AdminShell';
+import { PageHeader } from '@/components/admin/PageHeader';
+import { useToast } from '@/components/ui/Toast';
+import { Card } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
+import { BusIcon } from '@/components/admin/icons';
+
+const STATUS_TONE = {
+  ACTIVE: 'live',
+  INACTIVE: 'neutral',
+  MAINTENANCE: 'stale',
+  RETIRED: 'danger',
+} as const;
+
+const STATUS_LABEL: Record<string, string> = {
+  ACTIVE: 'Activo',
+  INACTIVE: 'Inactivo',
+  MAINTENANCE: 'Mantenimiento',
+  RETIRED: 'Retirado',
+};
 
 export default function BusesPage() {
   return (
@@ -14,10 +38,11 @@ export default function BusesPage() {
 }
 
 function BusesContent() {
+  const toast = useToast();
   const [buses, setBuses] = useState<BusResponse[]>([]);
   const [label, setLabel] = useState('');
   const [licensePlate, setLicensePlate] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -35,7 +60,7 @@ function BusesContent() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
+    setSubmitting(true);
     try {
       await adminFetch('/buses', {
         method: 'POST',
@@ -43,62 +68,75 @@ function BusesContent() {
       });
       setLabel('');
       setLicensePlate('');
+      toast.show(`Bus "${label}" agregado`, 'success');
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo crear el bus.');
+      toast.show(err instanceof Error ? err.message : 'No se pudo crear el bus.', 'error');
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
-    <div className="max-w-3xl">
-      <h1 className="mb-4 text-xl font-semibold">Buses</h1>
+    <div>
+      <PageHeader title="Buses" description="La flota física que tus conductores pueden usar." />
 
-      <form onSubmit={handleCreate} className="mb-6 flex flex-wrap items-end gap-3">
-        <label className="text-sm">
-          Etiqueta
-          <input
-            required
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="Bus 24"
-            className="mt-1 block rounded border border-gray-300 px-3 py-1.5 text-sm"
-          />
-        </label>
-        <label className="text-sm">
-          Placa
-          <input
-            value={licensePlate}
-            onChange={(e) => setLicensePlate(e.target.value)}
-            className="mt-1 block rounded border border-gray-300 px-3 py-1.5 text-sm"
-          />
-        </label>
-        <button type="submit" className="rounded bg-brand px-3 py-1.5 text-sm text-white">
-          Agregar bus
-        </button>
-      </form>
-      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
+      <Card className="mb-6 p-4">
+        <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-3">
+          <div className="w-40">
+            <Input
+              label="Etiqueta"
+              required
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Bus 24"
+            />
+          </div>
+          <div className="w-40">
+            <Input
+              label="Placa"
+              value={licensePlate}
+              onChange={(e) => setLicensePlate(e.target.value)}
+              placeholder="Opcional"
+            />
+          </div>
+          <Button type="submit" loading={submitting}>
+            Agregar bus
+          </Button>
+        </form>
+      </Card>
 
       {loading ? (
-        <p className="text-gray-500">Cargando…</p>
+        <Skeleton className="h-40 w-full" />
+      ) : buses.length === 0 ? (
+        <EmptyState
+          icon={<BusIcon />}
+          title="Todavía no hay buses"
+          description="Agregá el primero con el formulario de arriba."
+        />
       ) : (
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 text-left text-gray-500">
-              <th className="py-2">Etiqueta</th>
-              <th className="py-2">Placa</th>
-              <th className="py-2">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <THead>
+            <TR>
+              <TH>Etiqueta</TH>
+              <TH>Placa</TH>
+              <TH>Estado</TH>
+            </TR>
+          </THead>
+          <TBody>
             {buses.map((bus) => (
-              <tr key={bus.id} className="border-b border-gray-100">
-                <td className="py-2">{bus.label}</td>
-                <td className="py-2">{bus.licensePlate ?? '—'}</td>
-                <td className="py-2">{bus.status}</td>
-              </tr>
+              <TR key={bus.id}>
+                <TD className="font-medium">{bus.label}</TD>
+                <TD className="text-ink-secondary">{bus.licensePlate ?? '—'}</TD>
+                <TD>
+                  <Badge tone={STATUS_TONE[bus.status as keyof typeof STATUS_TONE] ?? 'neutral'}>
+                    {STATUS_LABEL[bus.status] ?? bus.status}
+                  </Badge>
+                </TD>
+              </TR>
             ))}
-          </tbody>
-        </table>
+          </TBody>
+        </Table>
       )}
     </div>
   );

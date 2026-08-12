@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import type {
   RouteResponse,
   RouteVariantResponse,
@@ -9,6 +11,17 @@ import type {
 } from '@tubus/contracts';
 import { adminFetch } from '@/lib/adminAuth';
 import { AdminShell } from '@/components/admin/AdminShell';
+import { useToast } from '@/components/ui/Toast';
+import { Card } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { copy } from '@/lib/copy';
+
+const MapView = dynamic(() => import('@/components/map/MapView').then((m) => m.MapView), {
+  ssr: false,
+  loading: () => <Skeleton className="h-full w-full" />,
+});
 
 export default function RouteDetailPage({ params }: { params: { id: string } }) {
   return (
@@ -19,10 +32,12 @@ export default function RouteDetailPage({ params }: { params: { id: string } }) 
 }
 
 function RouteDetailContent({ routeId }: { routeId: string }) {
+  const toast = useToast();
   const [route, setRoute] = useState<RouteResponse | null>(null);
   const [variants, setVariants] = useState<RouteVariantResponse[]>([]);
   const [allStops, setAllStops] = useState<StopResponse[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   const [variantName, setVariantName] = useState('');
   const [direction, setDirection] = useState<'OUTBOUND' | 'INBOUND'>('OUTBOUND');
@@ -32,14 +47,19 @@ function RouteDetailContent({ routeId }: { routeId: string }) {
   );
 
   async function load() {
-    const [routeData, variantList, stopList] = await Promise.all([
-      adminFetch<RouteResponse>(`/routes/${routeId}`),
-      adminFetch<RouteVariantResponse[]>(`/routes/${routeId}/variants`),
-      adminFetch<StopResponse[]>('/stops'),
-    ]);
-    setRoute(routeData);
-    setVariants(variantList);
-    setAllStops(stopList);
+    setLoading(true);
+    try {
+      const [routeData, variantList, stopList] = await Promise.all([
+        adminFetch<RouteResponse>(`/routes/${routeId}`),
+        adminFetch<RouteVariantResponse[]>(`/routes/${routeId}/variants`),
+        adminFetch<StopResponse[]>('/stops'),
+      ]);
+      setRoute(routeData);
+      setVariants(variantList);
+      setAllStops(stopList);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -48,7 +68,7 @@ function RouteDetailContent({ routeId }: { routeId: string }) {
 
   async function handleCreateVariant(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
+    setSubmitting(true);
     try {
       const geometry = JSON.parse(geometryJson);
       await adminFetch(`/routes/${routeId}/variants`, {
@@ -57,73 +77,95 @@ function RouteDetailContent({ routeId }: { routeId: string }) {
       });
       setVariantName('');
       setHeadsign('');
+      toast.show('Variante creada', 'success');
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo crear la variante.');
+      toast.show(
+        err instanceof SyntaxError
+          ? 'La geometría no es JSON válido.'
+          : err instanceof Error
+            ? err.message
+            : 'No se pudo crear la variante.',
+        'error',
+      );
+    } finally {
+      setSubmitting(false);
     }
   }
 
-  if (!route) return <p className="text-gray-500">Cargando…</p>;
+  if (loading || !route) {
+    return (
+      <div>
+        <Skeleton className="mb-2 h-8 w-64" />
+        <Skeleton className="mb-6 h-4 w-40" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-3xl">
-      <h1 className="mb-1 text-xl font-semibold">{route.name}</h1>
-      <p className="mb-6 text-sm text-gray-500">
-        {route.originLabel} → {route.destinationLabel}
+    <div>
+      <Link
+        href="/routes"
+        className="mb-3 inline-block text-callout font-medium text-ink-secondary hover:text-ink"
+      >
+        ← Todas las rutas
+      </Link>
+      <h1 className="text-title-lg text-ink">{route.name}</h1>
+      <p className="mb-6 text-callout text-ink-secondary">
+        {route.originLabel} → {route.destinationLabel} · /{route.publicSlug}
       </p>
 
-      <h2 className="mb-2 text-base font-semibold">Variantes</h2>
-      <form
-        onSubmit={handleCreateVariant}
-        className="mb-6 flex flex-col gap-3 rounded border border-gray-200 p-4"
-      >
-        <div className="flex flex-wrap gap-3">
-          <label className="text-sm">
-            Nombre
-            <input
+      <h2 className="mb-2 text-title text-ink">Variantes</h2>
+      <Card className="mb-6 p-4">
+        <form onSubmit={handleCreateVariant} className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-3">
+            <div className="w-44">
+              <Input
+                label="Nombre"
+                required
+                value={variantName}
+                onChange={(e) => setVariantName(e.target.value)}
+              />
+            </div>
+            <label className="block w-36 text-callout text-ink-secondary">
+              <span className="mb-1.5 block font-medium text-ink">Dirección</span>
+              <select
+                value={direction}
+                onChange={(e) => setDirection(e.target.value as 'OUTBOUND' | 'INBOUND')}
+                className="block w-full rounded-md border border-line bg-surface px-3 py-2 text-body text-ink focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15"
+              >
+                <option value="OUTBOUND">Ida</option>
+                <option value="INBOUND">Vuelta</option>
+              </select>
+            </label>
+            <div className="w-44">
+              <Input
+                label="Rótulo (headsign)"
+                required
+                value={headsign}
+                onChange={(e) => setHeadsign(e.target.value)}
+                placeholder="Hacia Palmares"
+              />
+            </div>
+          </div>
+          <label className="block text-callout text-ink-secondary">
+            <span className="mb-1.5 block font-medium text-ink">
+              Geometría (GeoJSON LineString)
+            </span>
+            <textarea
               required
-              value={variantName}
-              onChange={(e) => setVariantName(e.target.value)}
-              className="mt-1 block rounded border border-gray-300 px-3 py-1.5 text-sm"
+              rows={4}
+              value={geometryJson}
+              onChange={(e) => setGeometryJson(e.target.value)}
+              className="block w-full rounded-md border border-line bg-surface px-3 py-2 font-mono text-caption text-ink focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15"
             />
           </label>
-          <label className="text-sm">
-            Dirección
-            <select
-              value={direction}
-              onChange={(e) => setDirection(e.target.value as 'OUTBOUND' | 'INBOUND')}
-              className="mt-1 block rounded border border-gray-300 px-3 py-1.5 text-sm"
-            >
-              <option value="OUTBOUND">Ida</option>
-              <option value="INBOUND">Vuelta</option>
-            </select>
-          </label>
-          <label className="text-sm">
-            Rótulo (headsign)
-            <input
-              required
-              value={headsign}
-              onChange={(e) => setHeadsign(e.target.value)}
-              placeholder="Hacia Palmares"
-              className="mt-1 block rounded border border-gray-300 px-3 py-1.5 text-sm"
-            />
-          </label>
-        </div>
-        <label className="text-sm">
-          Geometría (GeoJSON LineString)
-          <textarea
-            required
-            rows={4}
-            value={geometryJson}
-            onChange={(e) => setGeometryJson(e.target.value)}
-            className="mt-1 block w-full rounded border border-gray-300 px-3 py-1.5 font-mono text-xs"
-          />
-        </label>
-        <button type="submit" className="w-fit rounded bg-brand px-3 py-1.5 text-sm text-white">
-          Crear variante
-        </button>
-      </form>
-      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
+          <Button type="submit" loading={submitting} className="w-fit">
+            Crear variante
+          </Button>
+        </form>
+      </Card>
 
       <div className="flex flex-col gap-4">
         {variants.map((variant) => (
@@ -143,11 +185,13 @@ function VariantCard({
   allStops: StopResponse[];
   onChange: () => void;
 }) {
+  const toast = useToast();
   const [stops, setStops] = useState<(StopResponse & { sequence: number })[]>([]);
   const [schedules, setSchedules] = useState<ScheduleResponse[]>([]);
   const [stopToAdd, setStopToAdd] = useState('');
   const [departureTime, setDepartureTime] = useState('06:00');
   const [daysOfWeek, setDaysOfWeek] = useState('1,2,3,4,5');
+  const [expanded, setExpanded] = useState(false);
 
   async function load() {
     const [stopList, scheduleList] = await Promise.all([
@@ -165,96 +209,162 @@ function VariantCard({
   async function handleAttachStop(e: React.FormEvent) {
     e.preventDefault();
     if (!stopToAdd) return;
-    await adminFetch(`/variants/${variant.id}/stops`, {
-      method: 'POST',
-      body: { stopId: stopToAdd },
-    });
-    setStopToAdd('');
-    await load();
+    try {
+      await adminFetch(`/variants/${variant.id}/stops`, {
+        method: 'POST',
+        body: { stopId: stopToAdd },
+      });
+      setStopToAdd('');
+      await load();
+    } catch (err) {
+      toast.show(err instanceof Error ? err.message : 'No se pudo agregar la parada.', 'error');
+    }
+  }
+
+  async function handleDetachStop(stopId: string) {
+    try {
+      await adminFetch(`/variants/${variant.id}/stops/${stopId}`, { method: 'DELETE' });
+      await load();
+    } catch (err) {
+      toast.show(err instanceof Error ? err.message : 'No se pudo quitar la parada.', 'error');
+    }
   }
 
   async function handleAddSchedule(e: React.FormEvent) {
     e.preventDefault();
-    await adminFetch(`/variants/${variant.id}/schedules`, {
-      method: 'POST',
-      body: {
-        departureTime,
-        daysOfWeek: daysOfWeek.split(',').map((d) => Number(d.trim())),
-      },
-    });
-    await load();
+    try {
+      await adminFetch(`/variants/${variant.id}/schedules`, {
+        method: 'POST',
+        body: { departureTime, daysOfWeek: daysOfWeek.split(',').map((d) => Number(d.trim())) },
+      });
+      await load();
+    } catch (err) {
+      toast.show(err instanceof Error ? err.message : 'No se pudo agregar el horario.', 'error');
+    }
+  }
+
+  async function handleRemoveSchedule(id: string) {
+    try {
+      await adminFetch(`/schedules/${id}`, { method: 'DELETE' });
+      await load();
+    } catch (err) {
+      toast.show(err instanceof Error ? err.message : 'No se pudo quitar el horario.', 'error');
+    }
   }
 
   return (
-    <div className="rounded border border-gray-200 p-4">
-      <h3 className="font-medium">
-        {variant.name} — {variant.headsign}
-      </h3>
-
-      <div className="mt-3 grid grid-cols-2 gap-4">
-        <div>
-          <h4 className="mb-1 text-sm font-semibold text-gray-600">Paradas</h4>
-          <ol className="mb-2 list-decimal pl-4 text-sm">
-            {stops.map((stop) => (
-              <li key={stop.id}>{stop.name}</li>
-            ))}
-          </ol>
-          <form onSubmit={handleAttachStop} className="flex gap-2">
-            <select
-              value={stopToAdd}
-              onChange={(e) => setStopToAdd(e.target.value)}
-              className="rounded border border-gray-300 px-2 py-1 text-sm"
-            >
-              <option value="">Agregar parada…</option>
-              {allStops
-                .filter((s) => !stops.some((existing) => existing.id === s.id))
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-            </select>
-            <button type="submit" className="rounded border border-gray-300 px-2 py-1 text-sm">
-              Agregar
-            </button>
-          </form>
-        </div>
-
-        <div>
-          <h4 className="mb-1 text-sm font-semibold text-gray-600">Horarios</h4>
-          <ul className="mb-2 text-sm">
-            {schedules.map((s) => (
-              <li key={s.id}>
-                {s.departureTime} — días {s.daysOfWeek.join(',')}
-              </li>
-            ))}
-          </ul>
-          <form onSubmit={handleAddSchedule} className="flex flex-wrap gap-2">
-            <input
-              type="time"
-              value={departureTime}
-              onChange={(e) => setDepartureTime(e.target.value)}
-              className="rounded border border-gray-300 px-2 py-1 text-sm"
-            />
-            <input
-              value={daysOfWeek}
-              onChange={(e) => setDaysOfWeek(e.target.value)}
-              className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
-              title="Días (0=domingo)"
-            />
-            <button type="submit" className="rounded border border-gray-300 px-2 py-1 text-sm">
-              Agregar horario
-            </button>
-          </form>
-        </div>
-      </div>
+    <Card className="p-4">
       <button
         type="button"
-        onClick={onChange}
-        className="mt-3 text-xs text-gray-400 hover:text-gray-600"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center justify-between text-left"
       >
-        Actualizar
+        <h3 className="font-medium text-ink">
+          {variant.name} — {variant.headsign}
+          <span className="ml-2 text-caption text-ink-tertiary">
+            {stops.length} paradas · {schedules.length} horarios
+          </span>
+        </h3>
+        <span className={`text-ink-tertiary transition-transform ${expanded ? 'rotate-180' : ''}`}>
+          ⌄
+        </span>
       </button>
-    </div>
+
+      {expanded ? (
+        <div className="mt-4 grid gap-5 lg:grid-cols-2">
+          <div className="h-56 overflow-hidden rounded-md border border-line">
+            <MapView geometry={variant.geometry} stops={stops} buses={[]} className="h-full" />
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <h4 className="mb-2 text-callout font-semibold text-ink-secondary">Paradas</h4>
+              <ul className="mb-3 flex flex-col gap-1">
+                {stops.map((stop) => (
+                  <li key={stop.id} className="flex items-center justify-between text-callout">
+                    <span className="text-ink">
+                      {stop.sequence}. {stop.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDetachStop(stop.id)}
+                      className="text-caption text-ink-tertiary hover:text-danger"
+                    >
+                      Quitar
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <form onSubmit={handleAttachStop} className="flex gap-2">
+                <select
+                  value={stopToAdd}
+                  onChange={(e) => setStopToAdd(e.target.value)}
+                  className="min-w-0 flex-1 rounded-md border border-line bg-surface px-2 py-1.5 text-callout text-ink"
+                >
+                  <option value="">Agregar parada…</option>
+                  {allStops
+                    .filter((s) => !stops.some((existing) => existing.id === s.id))
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                </select>
+                <Button type="submit" size="sm" variant="secondary">
+                  Agregar
+                </Button>
+              </form>
+            </div>
+
+            <div>
+              <h4 className="mb-2 text-callout font-semibold text-ink-secondary">Horarios</h4>
+              <ul className="mb-3 flex flex-col gap-1">
+                {schedules.map((s) => (
+                  <li key={s.id} className="flex items-center justify-between text-callout">
+                    <span className="text-ink">
+                      {s.departureTime} — {copy.daysOfWeek(s.daysOfWeek)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSchedule(s.id)}
+                      className="text-caption text-ink-tertiary hover:text-danger"
+                    >
+                      Quitar
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <form onSubmit={handleAddSchedule} className="flex flex-wrap gap-2">
+                <input
+                  type="time"
+                  value={departureTime}
+                  onChange={(e) => setDepartureTime(e.target.value)}
+                  className="rounded-md border border-line bg-surface px-2 py-1.5 text-callout text-ink"
+                />
+                <input
+                  value={daysOfWeek}
+                  onChange={(e) => setDaysOfWeek(e.target.value)}
+                  className="w-24 rounded-md border border-line bg-surface px-2 py-1.5 text-callout text-ink"
+                  title="Días (0=domingo)"
+                />
+                <Button type="submit" size="sm" variant="secondary">
+                  Agregar horario
+                </Button>
+              </form>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {expanded ? (
+        <button
+          type="button"
+          onClick={onChange}
+          className="mt-3 text-caption text-ink-tertiary hover:text-ink"
+        >
+          Actualizar datos
+        </button>
+      ) : null}
+    </Card>
   );
 }

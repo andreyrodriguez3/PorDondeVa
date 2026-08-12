@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,7 +10,11 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Express } from 'express';
 import {
   createDomainRequestSchema,
   updateCompanyRequestSchema,
@@ -21,6 +26,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/token.service';
 import { ZodValidationPipe } from '../common/zod/zod-validation.pipe';
 import { requireCompanyId } from '../common/http/require-company-id';
+import { MAX_LOGO_BYTES } from '../common/http/image-validation';
 import { CompaniesService } from './companies.service';
 
 @Controller('companies/me')
@@ -45,6 +51,14 @@ export class CompaniesController {
   @Get('domains')
   listDomains(@CurrentUser() user: JwtPayload) {
     return this.companies.listDomains(requireCompanyId(user));
+  }
+
+  @Roles('COMPANY_ADMIN')
+  @Post('logo')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_LOGO_BYTES } }))
+  uploadLogo(@CurrentUser() user: JwtPayload, @UploadedFile() file?: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file was uploaded.');
+    return this.companies.setLogo(requireCompanyId(user), file.buffer);
   }
 
   @Roles('COMPANY_ADMIN')

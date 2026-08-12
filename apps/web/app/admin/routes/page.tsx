@@ -5,6 +5,14 @@ import Link from 'next/link';
 import type { RouteResponse } from '@tubus/contracts';
 import { adminFetch } from '@/lib/adminAuth';
 import { AdminShell } from '@/components/admin/AdminShell';
+import { PageHeader } from '@/components/admin/PageHeader';
+import { useToast } from '@/components/ui/Toast';
+import { Card } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { RouteIcon } from '@/components/admin/icons';
 
 export default function RoutesPage() {
   return (
@@ -15,12 +23,13 @@ export default function RoutesPage() {
 }
 
 function RoutesContent() {
+  const toast = useToast();
   const [routes, setRoutes] = useState<RouteResponse[]>([]);
   const [name, setName] = useState('');
   const [originLabel, setOriginLabel] = useState('');
   const [destinationLabel, setDestinationLabel] = useState('');
   const [publicSlug, setPublicSlug] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -38,7 +47,7 @@ function RoutesContent() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
+    setSubmitting(true);
     try {
       await adminFetch('/routes', {
         method: 'POST',
@@ -48,75 +57,79 @@ function RoutesContent() {
       setOriginLabel('');
       setDestinationLabel('');
       setPublicSlug('');
+      toast.show(`Ruta "${name}" creada`, 'success');
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo crear la ruta.');
+      toast.show(err instanceof Error ? err.message : 'No se pudo crear la ruta.', 'error');
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
-    <div className="max-w-3xl">
-      <h1 className="mb-4 text-xl font-semibold">Rutas</h1>
+    <div>
+      <PageHeader title="Rutas" description="Cada ruta tiene una o más variantes direccionales." />
 
-      <form onSubmit={handleCreate} className="mb-6 flex flex-wrap items-end gap-3">
-        <label className="text-sm">
-          Nombre
-          <input
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 block rounded border border-gray-300 px-3 py-1.5 text-sm"
-          />
-        </label>
-        <label className="text-sm">
-          Origen
-          <input
-            required
-            value={originLabel}
-            onChange={(e) => setOriginLabel(e.target.value)}
-            className="mt-1 block rounded border border-gray-300 px-3 py-1.5 text-sm"
-          />
-        </label>
-        <label className="text-sm">
-          Destino
-          <input
-            required
-            value={destinationLabel}
-            onChange={(e) => setDestinationLabel(e.target.value)}
-            className="mt-1 block rounded border border-gray-300 px-3 py-1.5 text-sm"
-          />
-        </label>
-        <label className="text-sm">
-          Slug público
-          <input
-            required
-            pattern="[a-z0-9-]+"
-            value={publicSlug}
-            onChange={(e) => setPublicSlug(e.target.value)}
-            placeholder="sanjose-palmares"
-            className="mt-1 block rounded border border-gray-300 px-3 py-1.5 text-sm"
-          />
-        </label>
-        <button type="submit" className="rounded bg-brand px-3 py-1.5 text-sm text-white">
-          Crear ruta
-        </button>
-      </form>
-      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
+      <Card className="mb-6 p-4">
+        <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-3">
+          <div className="w-44">
+            <Input label="Nombre" required value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="w-36">
+            <Input
+              label="Origen"
+              required
+              value={originLabel}
+              onChange={(e) => setOriginLabel(e.target.value)}
+            />
+          </div>
+          <div className="w-36">
+            <Input
+              label="Destino"
+              required
+              value={destinationLabel}
+              onChange={(e) => setDestinationLabel(e.target.value)}
+            />
+          </div>
+          <div className="w-44">
+            <Input
+              label="Slug público"
+              required
+              pattern="[a-z0-9-]+"
+              value={publicSlug}
+              onChange={(e) => setPublicSlug(e.target.value)}
+              placeholder="sanjose-palmares"
+            />
+          </div>
+          <Button type="submit" loading={submitting}>
+            Crear ruta
+          </Button>
+        </form>
+      </Card>
 
       {loading ? (
-        <p className="text-gray-500">Cargando…</p>
+        <Skeleton className="h-32 w-full" />
+      ) : routes.length === 0 ? (
+        <EmptyState
+          icon={<RouteIcon />}
+          title="Todavía no hay rutas"
+          description="Creá la primera con el formulario de arriba."
+        />
       ) : (
         <ul className="flex flex-col gap-2">
           {routes.map((route) => (
             <li key={route.id}>
               <Link
                 href={`/routes/${route.id}`}
-                className="block rounded border border-gray-200 px-4 py-3 hover:border-brand"
+                className="flex items-center justify-between rounded-lg border border-line bg-surface px-4 py-3 shadow-elevate-1 transition-colors hover:border-brand/40"
               >
-                <span className="font-medium">{route.name}</span>
-                <span className="ml-2 text-sm text-gray-500">
-                  {route.originLabel} → {route.destinationLabel} (/{route.publicSlug})
+                <span>
+                  <span className="font-medium text-ink">{route.name}</span>
+                  <span className="ml-2 text-callout text-ink-secondary">
+                    {route.originLabel} → {route.destinationLabel}
+                  </span>
                 </span>
+                <span className="text-caption text-ink-tertiary">/{route.publicSlug}</span>
               </Link>
             </li>
           ))}

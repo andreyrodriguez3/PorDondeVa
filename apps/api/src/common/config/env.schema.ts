@@ -17,6 +17,8 @@ export const envSchema = z.object({
   RATE_LIMIT_TTL: z.coerce.number().int().positive().default(60),
   RATE_LIMIT_LIMIT: z.coerce.number().int().positive().default(100),
   API_PORT: z.coerce.number().int().positive().default(8080),
+  // A mounted volume in production (docker-compose.prod.yml); a local folder in dev.
+  UPLOADS_DIR: z.string().min(1).default('./uploads'),
 });
 
 export type Env = z.infer<typeof envSchema>;

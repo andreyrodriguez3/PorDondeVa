@@ -2,47 +2,99 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { clearSession } from '@/lib/adminAuth';
+import { motion } from 'motion/react';
+import { clearSession, getCurrentUser } from '@/lib/adminAuth';
+import {
+  BusIcon,
+  DriverIcon,
+  LiveIcon,
+  LogoutIcon,
+  QrIcon,
+  RouteIcon,
+  SettingsIcon,
+  StopIcon,
+  TripsIcon,
+} from './icons';
 
 const LINKS = [
-  { href: '/live', label: 'Flota en vivo' },
-  { href: '/trips', label: 'Viajes' },
-  { href: '/buses', label: 'Buses' },
-  { href: '/drivers', label: 'Conductores' },
-  { href: '/routes', label: 'Rutas' },
-  { href: '/stops', label: 'Paradas' },
+  { href: '/live', label: 'Flota en vivo', icon: LiveIcon },
+  { href: '/trips', label: 'Viajes', icon: TripsIcon },
+  { href: '/buses', label: 'Buses', icon: BusIcon },
+  { href: '/drivers', label: 'Conductores', icon: DriverIcon },
+  { href: '/routes', label: 'Rutas', icon: RouteIcon },
+  { href: '/stops', label: 'Paradas', icon: StopIcon },
+  { href: '/qr', label: 'Códigos QR', icon: QrIcon },
+  { href: '/settings', label: 'Configuración', icon: SettingsIcon },
 ];
+
+const ROLE_LABEL: Record<string, string> = {
+  SUPER_ADMIN: 'Super admin',
+  COMPANY_ADMIN: 'Administrador',
+  OPERATOR: 'Operador',
+  DRIVER: 'Conductor',
+};
 
 export function AdminNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const user = getCurrentUser();
 
   return (
-    <nav className="flex w-48 shrink-0 flex-col gap-1 border-r border-gray-200 p-4">
-      <span className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-400">
-        TuBus Admin
-      </span>
-      {LINKS.map((link) => (
-        <Link
-          key={link.href}
-          href={link.href}
-          className={`rounded px-3 py-2 text-sm ${
-            pathname === link.href ? 'bg-brand text-white' : 'text-gray-700 hover:bg-gray-100'
-          }`}
+    <nav className="flex w-56 shrink-0 flex-col border-r border-line bg-surface px-3 py-4">
+      <div className="mb-5 flex items-center gap-2 px-2">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand text-callout font-bold text-brand-fg">
+          T
+        </span>
+        <span className="text-title text-ink">TuBus Admin</span>
+      </div>
+
+      <div className="flex flex-col gap-0.5">
+        {LINKS.map((link) => {
+          const active = pathname === link.href;
+          const Icon = link.icon;
+          return (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`relative flex items-center gap-2.5 rounded-md px-3 py-2 text-callout font-medium transition-colors duration-150 ${
+                active ? 'text-brand' : 'text-ink-secondary hover:text-ink'
+              }`}
+            >
+              {active ? (
+                <motion.span
+                  layoutId="admin-nav-active"
+                  className="absolute inset-0 rounded-md bg-brand/10"
+                  transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
+                />
+              ) : null}
+              <span className="relative z-10">
+                <Icon />
+              </span>
+              <span className="relative z-10">{link.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="mt-auto flex flex-col gap-2 border-t border-line pt-3">
+        {user ? (
+          <div className="px-2">
+            <p className="truncate text-callout font-medium text-ink">{user.name}</p>
+            <p className="text-caption text-ink-tertiary">{ROLE_LABEL[user.role] ?? user.role}</p>
+          </div>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => {
+            clearSession();
+            router.replace('/login');
+          }}
+          className="flex items-center gap-2 rounded-md px-3 py-2 text-left text-callout font-medium text-ink-secondary transition-colors hover:bg-surface-tertiary hover:text-ink"
         >
-          {link.label}
-        </Link>
-      ))}
-      <button
-        type="button"
-        onClick={() => {
-          clearSession();
-          router.replace('/login');
-        }}
-        className="mt-6 rounded px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-100"
-      >
-        Cerrar sesión
-      </button>
+          <LogoutIcon />
+          Cerrar sesión
+        </button>
+      </div>
     </nav>
   );
 }

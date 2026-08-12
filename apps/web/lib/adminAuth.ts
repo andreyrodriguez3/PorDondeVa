@@ -69,6 +69,43 @@ export async function adminFetch<T>(
   return res.json() as Promise<T>;
 }
 
+/** Same auth as adminFetch, for a multipart file upload — no Content-Type set manually
+ * so the browser can add its own boundary. */
+export async function adminUpload<T>(path: string, file: File): Promise<T> {
+  const token = getAccessToken();
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`/api${path}`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (res.status === 401) {
+    clearSession();
+    throw new Error('Session expired');
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error?.message ?? `Request failed: ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+/** Same auth as adminFetch, for endpoints that return a binary body (QR PNGs) instead of JSON. */
+export async function adminFetchBlob(path: string): Promise<Blob> {
+  const token = getAccessToken();
+  const res = await fetch(`/api${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    cache: 'no-store',
+  });
+  if (res.status === 401) {
+    clearSession();
+    throw new Error('Session expired');
+  }
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  return res.blob();
+}
+
 /** Redirects to /login if there is no stored session; otherwise returns the user. */
 export function useRequireAdminAuth(): AuthenticatedUser | null {
   const router = useRouter();

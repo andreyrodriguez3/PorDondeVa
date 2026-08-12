@@ -20,8 +20,23 @@ export const tripResponseSchema = z.object({
   startedAt: z.string().datetime(),
   endedAt: z.string().datetime().nullable(),
   rejectedPointCount: z.number().int(),
+  // Denormalized labels so the admin UI never has to resolve a UUID by hand.
+  busLabel: z.string(),
+  driverName: z.string(),
+  routeName: z.string(),
+  variantHeadsign: z.string(),
 });
 export type TripResponse = z.infer<typeof tripResponseSchema>;
+
+export const locationHistoryPointSchema = z.object({
+  latitude: z.number(),
+  longitude: z.number(),
+  accuracyM: z.number().nullable(),
+  speedMps: z.number().nullable(),
+  bearingDeg: z.number().nullable(),
+  deviceTimestamp: z.string().datetime(),
+});
+export type LocationHistoryPoint = z.infer<typeof locationHistoryPointSchema>;
 
 export const driverAssignmentResponseSchema = z.object({
   defaultBusId: z.string().uuid().nullable(),

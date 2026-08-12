@@ -1,9 +1,38 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import type { TripResponse } from '@tubus/contracts';
 import { adminFetch } from '@/lib/adminAuth';
 import { AdminShell } from '@/components/admin/AdminShell';
+import { PageHeader } from '@/components/admin/PageHeader';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { Badge } from '@/components/ui/Badge';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
+import { TripsIcon } from '@/components/admin/icons';
+
+const STATUS_OPTIONS = [
+  { id: '', label: 'Todos' },
+  { id: 'ACTIVE', label: 'Activos' },
+  { id: 'COMPLETED', label: 'Completados' },
+  { id: 'CANCELLED', label: 'Cancelados' },
+];
+
+const STATUS_TONE = {
+  ACTIVE: 'live',
+  COMPLETED: 'neutral',
+  CANCELLED: 'danger',
+  SCHEDULED: 'stale',
+} as const;
+
+const STATUS_LABEL: Record<string, string> = {
+  ACTIVE: 'Activo',
+  COMPLETED: 'Completado',
+  CANCELLED: 'Cancelado',
+  SCHEDULED: 'Programado',
+};
 
 export default function TripsPage() {
   return (
@@ -33,45 +62,67 @@ function TripsContent() {
   }, [status]);
 
   return (
-    <div className="max-w-3xl">
-      <h1 className="mb-4 text-xl font-semibold">Viajes</h1>
+    <div>
+      <PageHeader title="Viajes" description="Historial de viajes, en vivo y completados." />
 
-      <select
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
-        className="mb-4 rounded border border-gray-300 px-3 py-1.5 text-sm"
-      >
-        <option value="">Todos</option>
-        <option value="ACTIVE">Activos</option>
-        <option value="COMPLETED">Completados</option>
-        <option value="CANCELLED">Cancelados</option>
-      </select>
+      <div className="mb-4">
+        <SegmentedControl options={STATUS_OPTIONS} value={status} onChange={setStatus} />
+      </div>
 
       {loading ? (
-        <p className="text-gray-500">Cargando…</p>
+        <Skeleton className="h-48 w-full" />
+      ) : trips.length === 0 ? (
+        <EmptyState icon={<TripsIcon />} title="No hay viajes en este filtro" />
       ) : (
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 text-left text-gray-500">
-              <th className="py-2">Estado</th>
-              <th className="py-2">Inicio</th>
-              <th className="py-2">Fin</th>
-              <th className="py-2">Puntos rechazados</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <THead>
+            <TR>
+              <TH>Estado</TH>
+              <TH>Bus</TH>
+              <TH>Conductor</TH>
+              <TH>Ruta</TH>
+              <TH>Inicio</TH>
+              <TH>Fin</TH>
+              <TH>Rechazados</TH>
+            </TR>
+          </THead>
+          <TBody>
             {trips.map((trip) => (
-              <tr key={trip.id} className="border-b border-gray-100">
-                <td className="py-2">{trip.status}</td>
-                <td className="py-2">{new Date(trip.startedAt).toLocaleString('es-CR')}</td>
-                <td className="py-2">
+              <TR key={trip.id}>
+                <TD>
+                  <Badge tone={STATUS_TONE[trip.status]}>
+                    {STATUS_LABEL[trip.status] ?? trip.status}
+                  </Badge>
+                </TD>
+                <TD>
+                  <Link
+                    href={`/trips/${trip.id}`}
+                    className="font-medium text-brand hover:underline"
+                  >
+                    {trip.busLabel}
+                  </Link>
+                </TD>
+                <TD className="text-ink-secondary">{trip.driverName}</TD>
+                <TD className="text-ink-secondary">
+                  {trip.routeName} · {trip.variantHeadsign}
+                </TD>
+                <TD className="text-ink-secondary">
+                  {new Date(trip.startedAt).toLocaleString('es-CR')}
+                </TD>
+                <TD className="text-ink-secondary">
                   {trip.endedAt ? new Date(trip.endedAt).toLocaleString('es-CR') : '—'}
-                </td>
-                <td className="py-2">{trip.rejectedPointCount}</td>
-              </tr>
+                </TD>
+                <TD className="text-ink-secondary">
+                  {trip.rejectedPointCount > 0 ? (
+                    <Badge tone="danger">{trip.rejectedPointCount}</Badge>
+                  ) : (
+                    '0'
+                  )}
+                </TD>
+              </TR>
             ))}
-          </tbody>
-        </table>
+          </TBody>
+        </Table>
       )}
     </div>
   );
