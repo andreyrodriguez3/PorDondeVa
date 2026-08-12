@@ -55,12 +55,15 @@ test('admin creates a route with a variant and a stop, and it appears on the pub
   await page.getByLabel('Latitud').fill('9.9333');
   await page.getByLabel('Longitud').fill('-84.0833');
   await page.getByRole('button', { name: 'Agregar parada' }).click();
-  await expect(page.getByText(stopName)).toBeVisible({ timeout: 10_000 });
+  // Scoped to the table: a success toast bearing the same name briefly overlaps it.
+  await expect(page.getByRole('cell', { name: stopName })).toBeVisible({ timeout: 10_000 });
 
   await page.goto(`${ADMIN_BASE}/routes`);
   await settle(page);
   await routeLink.click();
   await settle(page);
+  // The variant card is collapsed by default — expand it before reaching into its form.
+  await page.getByText('Variante E2E — Hacia Destino E2E').click();
   await page
     .locator('form')
     .filter({ hasText: 'Agregar parada' })
