@@ -2,10 +2,27 @@ import { headers } from 'next/headers';
 import Link from 'next/link';
 import { listRoutes } from '@/lib/api';
 import { copy } from '@/lib/copy';
+import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 function resolveHostname(): string {
   const h = headers();
   return (h.get('host') ?? '').split(':')[0]!;
+}
+
+function BusIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M4 16.5V6.8C4 5.25 5.3 4 6.9 4h10.2C18.7 4 20 5.25 20 6.8v9.7c0 1.05-.86 1.9-1.93 1.9H5.93A1.93 1.93 0 0 1 4 16.5Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <path d="M6 6.4h12" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="7.6" cy="19" r="1.6" fill="currentColor" />
+      <circle cx="16.4" cy="19" r="1.6" fill="currentColor" />
+    </svg>
+  );
 }
 
 export default async function CompanyLandingPage() {
@@ -14,31 +31,50 @@ export default async function CompanyLandingPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
-      <h1 className="mb-4 text-xl font-semibold">{copy.routesHeading}</h1>
+      <h1 className="mb-1 text-display text-ink">{copy.routesHeading}</h1>
+      <p className="mb-6 text-body text-ink-secondary">{copy.routesSubheading}</p>
+
       {routes.length === 0 ? (
-        <p className="text-gray-500">{copy.noRoutes}</p>
+        <EmptyState icon={<BusIcon />} title={copy.noRoutes} description={copy.noRoutesHint} />
       ) : (
         <ul className="flex flex-col gap-3">
-          {routes.map((route) => (
-            <li key={route.slug}>
-              <Link
-                href={`/r/${route.slug}`}
-                className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 hover:border-brand"
+          {routes.map((route, i) => {
+            const corridor = `${route.originLabel} → ${route.destinationLabel}`;
+            const showCorridor = corridor !== route.name;
+            return (
+              <li
+                key={route.slug}
+                className="animate-fade-up"
+                style={{ animationDelay: `${i * 60}ms` }}
               >
-                <span>
-                  <span className="block font-medium">{route.name}</span>
-                  <span className="block text-sm text-gray-500">
-                    {route.originLabel} → {route.destinationLabel}
+                <Link
+                  href={`/r/${route.slug}`}
+                  className="group flex items-center gap-3 rounded-lg border border-line bg-surface px-4 py-3.5 shadow-elevate-1 transition-all duration-150 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-elevate-2 active:translate-y-0 active:shadow-elevate-1"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">
+                    <BusIcon />
                   </span>
-                </span>
-                {route.activeBusCount > 0 ? (
-                  <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
-                    {route.activeBusCount} en vivo
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-title text-ink">{route.name}</span>
+                    {showCorridor ? (
+                      <span className="block truncate text-callout text-ink-secondary">
+                        {corridor}
+                      </span>
+                    ) : null}
                   </span>
-                ) : null}
-              </Link>
-            </li>
-          ))}
+                  {route.activeBusCount > 0 ? (
+                    <Badge tone="live" dot>
+                      {route.activeBusCount} {route.activeBusCount === 1 ? 'bus' : 'buses'}
+                    </Badge>
+                  ) : (
+                    <span className="shrink-0 text-caption text-ink-tertiary">
+                      {copy.noActiveBusesShort}
+                    </span>
+                  )}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

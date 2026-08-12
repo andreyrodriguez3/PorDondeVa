@@ -18,15 +18,25 @@ export default async function PublicLayout({ children }: { children: React.React
     : undefined;
 
   return (
-    <div style={style} className="flex min-h-screen flex-col">
-      <header className="flex items-center gap-3 border-b border-gray-200 px-4 py-3">
-        {company.logoPath ? (
-          <img src={company.logoPath} alt={company.name} className="h-8 w-8 rounded" />
-        ) : null}
-        <span className="text-lg font-semibold text-brand">{company.name}</span>
+    <div style={style} className="flex min-h-screen flex-col bg-surface-secondary">
+      <header className="sticky top-0 z-40 border-b border-line/70 bg-surface/75 px-4 py-3 backdrop-blur-chrome">
+        <div className="mx-auto flex max-w-2xl items-center gap-2.5">
+          {company.logoPath ? (
+            <img
+              src={company.logoPath}
+              alt={company.name}
+              className="h-8 w-8 rounded-full object-cover shadow-elevate-1"
+            />
+          ) : (
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-body font-bold text-brand-fg">
+              {company.name.charAt(0)}
+            </span>
+          )}
+          <span className="text-title text-ink">{company.name}</span>
+        </div>
       </header>
       <main className="flex-1">{children}</main>
-      <footer className="border-t border-gray-100 px-4 py-3 text-center text-xs text-gray-400">
+      <footer className="px-4 py-6 text-center text-caption text-ink-tertiary">
         {copy.poweredBy}
       </footer>
     </div>

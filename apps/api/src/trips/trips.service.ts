@@ -42,6 +42,7 @@ export class TripsService {
   async findActiveForDriver(companyId: string, driverUserId: string): Promise<TripResponse | null> {
     const trip = await this.prisma.scoped.trip.findFirst({
       where: { companyId, driverUserId, status: 'ACTIVE' },
+      include: TRIP_LABEL_INCLUDE,
     });
     return trip ? toResponse(trip) : null;
   }
@@ -80,6 +81,7 @@ export class TripsService {
           driverUserId,
           status: 'ACTIVE',
         },
+        include: TRIP_LABEL_INCLUDE,
       });
       return toResponse(trip);
     } catch (error) {
@@ -109,6 +111,7 @@ export class TripsService {
     const updated = await this.prisma.trip.update({
       where: { id: tripId },
       data: { status: 'COMPLETED', endedAt: new Date(), endReason: reason },
+      include: TRIP_LABEL_INCLUDE,
     });
     return toResponse(updated);
   }
@@ -118,12 +121,16 @@ export class TripsService {
       where: { companyId, ...(status ? { status: status as never } : {}) },
       orderBy: { startedAt: 'desc' },
       take: 100,
+      include: TRIP_LABEL_INCLUDE,
     });
     return trips.map(toResponse);
   }
 
   async findOne(companyId: string, id: string): Promise<TripResponse> {
-    const trip = await this.prisma.scoped.trip.findFirst({ where: { companyId, id } });
+    const trip = await this.prisma.scoped.trip.findFirst({
+      where: { companyId, id },
+      include: TRIP_LABEL_INCLUDE,
+    });
     if (!trip) throw new NotFoundException();
     return toResponse(trip);
   }
@@ -145,6 +152,13 @@ export class TripsService {
   }
 }
 
+const TRIP_LABEL_INCLUDE = {
+  bus: { select: { label: true } },
+  driver: { select: { name: true } },
+  route: { select: { name: true } },
+  variant: { select: { headsign: true } },
+} as const;
+
 function toResponse(trip: {
   id: string;
   routeId: string;
@@ -155,6 +169,10 @@ function toResponse(trip: {
   startedAt: Date;
   endedAt: Date | null;
   rejectedPointCount: number;
+  bus: { label: string };
+  driver: { name: string };
+  route: { name: string };
+  variant: { headsign: string };
 }): TripResponse {
   return {
     id: trip.id,
@@ -166,5 +184,9 @@ function toResponse(trip: {
     startedAt: trip.startedAt.toISOString(),
     endedAt: trip.endedAt ? trip.endedAt.toISOString() : null,
     rejectedPointCount: trip.rejectedPointCount,
+    busLabel: trip.bus.label,
+    driverName: trip.driver.name,
+    routeName: trip.route.name,
+    variantHeadsign: trip.variant.headsign,
   };
 }

@@ -4,7 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { promises as dns } from 'node:dns';
+import { promises as fs } from 'node:fs';
+import * as path from 'node:path';
 import { Prisma } from '@prisma/client';
 import type {
   CompanyProfileResponse,
@@ -13,10 +16,14 @@ import type {
   UpdateCompanyRequest,
 } from '@tubus/contracts';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { detectImageExtension } from '../common/http/image-validation';
 
 @Injectable()
 export class CompaniesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   async getProfile(companyId: string): Promise<CompanyProfileResponse> {
     const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
@@ -28,6 +35,34 @@ export class CompaniesService {
     dto: UpdateCompanyRequest,
   ): Promise<CompanyProfileResponse> {
     const company = await this.prisma.company.update({ where: { id: companyId }, data: dto });
+    return toProfileResponse(company);
+  }
+
+  /**
+   * Validated by magic bytes, capped at MAX_LOGO_BYTES, stored under a name derived
+   * only from the company id — never the client-supplied filename (README.md "Logo
+   * upload"). Overwrites any previous logo of a different extension by removing it
+   * first, so switching from a PNG to a JPEG doesn't leave the old file orphaned.
+   */
+  async setLogo(companyId: string, buffer: Buffer): Promise<CompanyProfileResponse> {
+    const extension = detectImageExtension(buffer);
+    const uploadsDir = path.resolve(this.config.get<string>('UPLOADS_DIR')!, 'logos');
+    await fs.mkdir(uploadsDir, { recursive: true });
+
+    for (const ext of ['png', 'jpg', 'webp']) {
+      await fs.rm(path.join(uploadsDir, `${companyId}.${ext}`), { force: true });
+    }
+
+    const fileName = `${companyId}.${extension}`;
+    await fs.writeFile(path.join(uploadsDir, fileName), buffer);
+
+    // `/api/...` so the browser reaches it through the same same-origin rewrite/proxy
+    // every other admin request already uses (next.config.js in dev, Caddy in prod) —
+    // never the API's own bare origin, which the browser has no reason to know.
+    const company = await this.prisma.company.update({
+      where: { id: companyId },
+      data: { logoPath: `/api/uploads/logos/${fileName}` },
+    });
     return toProfileResponse(company);
   }
 

@@ -6,3 +6,40 @@ html,
 body {
   height: 100%;
 }
+
+body {
+  @apply bg-surface-secondary text-ink antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+/* System font fallback stack carries the load until the Inter variable font paints —
+   keeps first paint looking intentional instead of browser-default Times/Arial. */
+:root {
+  --brand-glow: color-mix(in srgb, var(--brand-color, #3d5afe) 16%, transparent);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Respect the platform's reduced-motion preference: replace spring/slide motion with a
+   short cross-fade everywhere (apple-design §14). Individual components still opt into
+   position transitions only outside this media query. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.maplibregl-popup-content {
+  @apply rounded-md border border-line px-3 py-2 font-sans text-callout shadow-elevate-2;
+}
+
+.maplibregl-ctrl-attrib {
+  @apply text-micro;
+}

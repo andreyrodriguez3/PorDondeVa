@@ -4,6 +4,15 @@ import { useEffect, useState } from 'react';
 import type { StopResponse } from '@tubus/contracts';
 import { adminFetch } from '@/lib/adminAuth';
 import { AdminShell } from '@/components/admin/AdminShell';
+import { PageHeader } from '@/components/admin/PageHeader';
+import { useToast } from '@/components/ui/Toast';
+import { Card } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
+import { StopIcon } from '@/components/admin/icons';
 
 export default function StopsPage() {
   return (
@@ -14,11 +23,12 @@ export default function StopsPage() {
 }
 
 function StopsContent() {
+  const toast = useToast();
   const [stops, setStops] = useState<StopResponse[]>([]);
   const [name, setName] = useState('');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -36,7 +46,7 @@ function StopsContent() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
+    setSubmitting(true);
     try {
       await adminFetch('/stops', {
         method: 'POST',
@@ -45,75 +55,80 @@ function StopsContent() {
       setName('');
       setLatitude('');
       setLongitude('');
+      toast.show(`Parada "${name}" agregada`, 'success');
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo crear la parada.');
+      toast.show(err instanceof Error ? err.message : 'No se pudo crear la parada.', 'error');
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
-    <div className="max-w-3xl">
-      <h1 className="mb-4 text-xl font-semibold">Paradas</h1>
+    <div>
+      <PageHeader
+        title="Paradas"
+        description="Lugares físicos reutilizables entre variantes de ruta."
+      />
 
-      <form onSubmit={handleCreate} className="mb-6 flex flex-wrap items-end gap-3">
-        <label className="text-sm">
-          Nombre
-          <input
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 block rounded border border-gray-300 px-3 py-1.5 text-sm"
-          />
-        </label>
-        <label className="text-sm">
-          Latitud
-          <input
-            required
-            type="number"
-            step="any"
-            value={latitude}
-            onChange={(e) => setLatitude(e.target.value)}
-            className="mt-1 block w-32 rounded border border-gray-300 px-3 py-1.5 text-sm"
-          />
-        </label>
-        <label className="text-sm">
-          Longitud
-          <input
-            required
-            type="number"
-            step="any"
-            value={longitude}
-            onChange={(e) => setLongitude(e.target.value)}
-            className="mt-1 block w-32 rounded border border-gray-300 px-3 py-1.5 text-sm"
-          />
-        </label>
-        <button type="submit" className="rounded bg-brand px-3 py-1.5 text-sm text-white">
-          Agregar parada
-        </button>
-      </form>
-      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
+      <Card className="mb-6 p-4">
+        <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-3">
+          <div className="w-48">
+            <Input label="Nombre" required value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="w-32">
+            <Input
+              label="Latitud"
+              required
+              type="number"
+              step="any"
+              value={latitude}
+              onChange={(e) => setLatitude(e.target.value)}
+            />
+          </div>
+          <div className="w-32">
+            <Input
+              label="Longitud"
+              required
+              type="number"
+              step="any"
+              value={longitude}
+              onChange={(e) => setLongitude(e.target.value)}
+            />
+          </div>
+          <Button type="submit" loading={submitting}>
+            Agregar parada
+          </Button>
+        </form>
+      </Card>
 
       {loading ? (
-        <p className="text-gray-500">Cargando…</p>
+        <Skeleton className="h-40 w-full" />
+      ) : stops.length === 0 ? (
+        <EmptyState
+          icon={<StopIcon />}
+          title="Todavía no hay paradas"
+          description="Agregá la primera con el formulario de arriba."
+        />
       ) : (
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 text-left text-gray-500">
-              <th className="py-2">Nombre</th>
-              <th className="py-2">Latitud</th>
-              <th className="py-2">Longitud</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <THead>
+            <TR>
+              <TH>Nombre</TH>
+              <TH>Latitud</TH>
+              <TH>Longitud</TH>
+            </TR>
+          </THead>
+          <TBody>
             {stops.map((stop) => (
-              <tr key={stop.id} className="border-b border-gray-100">
-                <td className="py-2">{stop.name}</td>
-                <td className="py-2">{stop.latitude}</td>
-                <td className="py-2">{stop.longitude}</td>
-              </tr>
+              <TR key={stop.id}>
+                <TD className="font-medium">{stop.name}</TD>
+                <TD className="text-ink-secondary">{stop.latitude}</TD>
+                <TD className="text-ink-secondary">{stop.longitude}</TD>
+              </TR>
             ))}
-          </tbody>
-        </table>
+          </TBody>
+        </Table>
       )}
     </div>
   );

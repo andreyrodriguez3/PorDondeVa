@@ -17,6 +17,9 @@ out/
 build/
 *.tsbuildinfo
 
+# uploaded company logos (a mounted volume in production)
+apps/api/uploads/
+
 # env
 .env
 .env.local

@@ -11,7 +11,9 @@ const API_PORT = 8080;
 
 export default defineConfig({
   testDir: './e2e',
-  timeout: 30_000,
+  // 60s: `next dev` JIT-compiles each route on first hit, and the admin flow now
+  // pulls in the full design-system bundle (motion, MapLibre) on that first compile.
+  timeout: 60_000,
   fullyParallel: false,
   workers: 1,
   retries: 0,
