@@ -17,7 +17,11 @@ interface Args {
   password: string;
 }
 
-function parseArgs(argv: string[]): Args {
+function parseArgs(rawArgv: string[]): Args {
+  // `pnpm simulate ...` forwards through a nested `pnpm --filter ... start --`, which
+  // can leave a stray literal "--" at the front of argv depending on the pnpm version
+  // and shell — harmless to drop since neither this CLI nor its flags ever use it.
+  const argv = rawArgv.filter((token) => token !== '--');
   const map = new Map<string, string>();
   for (let i = 0; i < argv.length; i += 2) {
     const key = argv[i]?.replace(/^--/, '');
