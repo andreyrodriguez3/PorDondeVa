@@ -2,6 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { PublicCompany, PublicRouteDetail, PublicRouteSummary } from '@tubus/contracts';
 import { PrismaService } from '../common/prisma/prisma.service';
 
+// `departureTime` is a Postgres `time` column (no zone) — node-postgres represents it as a
+// Date on the 1970-01-01 epoch with the stored hour/minute in UTC fields, regardless of the
+// server's local timezone, so reading UTC fields here reproduces the wall-clock value as-is.
+function formatWallClockTime(time: Date): string {
+  const hours = String(time.getUTCHours()).padStart(2, '0');
+  const minutes = String(time.getUTCMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
 @Injectable()
 export class PublicService {
   constructor(private readonly prisma: PrismaService) {}
@@ -49,6 +58,10 @@ export class PublicService {
               orderBy: { sequence: 'asc' },
               include: { stop: true },
             },
+            schedules: {
+              where: { active: true },
+              orderBy: { departureTime: 'asc' },
+            },
           },
         },
       },
@@ -72,6 +85,10 @@ export class PublicService {
           latitude: link.stop.latitude,
           longitude: link.stop.longitude,
           sequence: link.sequence,
+        })),
+        schedules: variant.schedules.map((schedule) => ({
+          departureTime: formatWallClockTime(schedule.departureTime),
+          daysOfWeek: schedule.daysOfWeek,
         })),
       })),
     };

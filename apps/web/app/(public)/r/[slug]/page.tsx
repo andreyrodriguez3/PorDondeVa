@@ -1,4 +1,5 @@
 import { headers } from 'next/headers';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getRouteDetail, getRouteLive } from '@/lib/api';
 import { copy } from '@/lib/copy';
@@ -20,29 +21,34 @@ export default async function RoutePage({ params }: { params: { slug: string } }
 
   return (
     <div>
-      <div className="mx-auto max-w-2xl px-4 pb-2 pt-6">
-        <h1 className="text-xl font-semibold">{route.name}</h1>
-        <p className="text-sm text-gray-500">
+      <div className="mx-auto max-w-2xl px-4 pt-5">
+        <Link
+          href="/"
+          className="mb-2 inline-flex items-center gap-1 text-callout font-medium text-ink-secondary hover:text-ink"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M15 18l-6-6 6-6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          {copy.backToRoutes}
+        </Link>
+        <h1 className="text-title-lg text-ink">{route.name}</h1>
+        <p className="text-callout text-ink-secondary">
           {route.originLabel} → {route.destinationLabel}
         </p>
       </div>
 
       <RouteLiveView
+        routeName={route.name}
         routeSlug={route.slug}
         variants={route.variants}
         initialBuses={live?.buses ?? []}
       />
-
-      <div className="mx-auto max-w-2xl px-4 pb-8">
-        <h2 className="mb-2 text-base font-semibold">{copy.stopsHeading}</h2>
-        <ol className="flex flex-col gap-1 text-sm text-gray-700">
-          {route.variants
-            .find((v) => v.isDefault)
-            ?.stops.map((stop) => (
-              <li key={stop.id}>{stop.name}</li>
-            ))}
-        </ol>
-      </div>
     </div>
   );
 }

@@ -28,6 +28,12 @@ export const publicStopSchema = z.object({
 });
 export type PublicStop = z.infer<typeof publicStopSchema>;
 
+export const publicScheduleSchema = z.object({
+  departureTime: z.string(), // "HH:mm", wall-clock in the company's timezone
+  daysOfWeek: z.array(z.number().int().min(0).max(6)), // 0 = Sunday
+});
+export type PublicSchedule = z.infer<typeof publicScheduleSchema>;
+
 export const publicVariantSchema = z.object({
   id: z.string().uuid(),
   direction: variantDirectionSchema,
@@ -35,6 +41,7 @@ export const publicVariantSchema = z.object({
   isDefault: z.boolean(),
   geometry: lineStringGeometrySchema,
   stops: z.array(publicStopSchema),
+  schedules: z.array(publicScheduleSchema),
 });
 export type PublicVariant = z.infer<typeof publicVariantSchema>;
 
