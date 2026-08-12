@@ -10,12 +10,16 @@ No necesitás saber programar para seguir esto — son comandos para copiar y pe
 
 ## 0. Lo que vas a necesitar instalado
 
-| Herramienta                | Para qué                                                 | Ya la tenés si…                                                   |
-| -------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------- |
-| **Docker Desktop**         | Corre la base de datos (y opcionalmente todo el backend) | Podés abrir Docker Desktop y ves la ballena en la barra de tareas |
-| **Node.js 20+** y **pnpm** | Corre el backend y el sitio web fuera de Docker          | `node -v` en una terminal te da `v20` o más                       |
-| **Android Studio**         | Solo si vas a reinstalar/reconstruir la app del chofer   | —                                                                 |
-| **ngrok**                  | Solo para probar la app del chofer lejos de casa         | Ya está instalado en esta PC                                      |
+| Herramienta                | Para qué                                               | Ya la tenés si…                             |
+| -------------------------- | ------------------------------------------------------ | ------------------------------------------- |
+| **PostgreSQL** (nativo)    | La base de datos                                       | Ya lo instalaste                            |
+| **Node.js 20+** y **pnpm** | Corre el backend y el sitio web                        | `node -v` en una terminal te da `v20` o más |
+| **Android Studio**         | Solo si vas a reinstalar/reconstruir la app del chofer | —                                           |
+| **ngrok**                  | Solo para probar la app del chofer lejos de casa       | Ya está instalado en esta PC                |
+
+> Docker ya no hace falta para nada en este manual — todo corre contra tu PostgreSQL
+> instalado directamente en Windows. Si preferís volver a usar Docker para la base de
+> datos más adelante, la sección **Solución de problemas** explica cómo.
 
 Todos los comandos van en una terminal (PowerShell) abierta en la carpeta del proyecto:
 
@@ -25,23 +29,25 @@ cd "C:\Users\Andrey\Documents\Proyectos FREELANCE\PorDondeVa"
 
 ---
 
-## 1. Levantar la base de datos
+## 1. Verificar la base de datos
+
+Este proyecto usa una base llamada `tubus` en tu PostgreSQL local (puerto **5433**,
+usuario `postgres`). Confirmá que el servicio está corriendo:
 
 ```powershell
-docker compose up -d
+Get-Service postgresql-x64-18
 ```
 
-Esto solo levanta Postgres (rápido). Si Docker Desktop no arranca o da error, revisá la
-sección **Solución de problemas** al final. Mientras Postgres esté corriendo en algún
-lado (aunque sea de una sesión anterior), podés saltarte este paso.
-
-Confirmá que está sano:
+Si dice `Stopped`, iniciálo con:
 
 ```powershell
-docker ps
+Start-Service postgresql-x64-18
 ```
 
-Deberías ver un contenedor `postgres` con estado `healthy`.
+> Si tu instalación quedó con otro nombre de servicio o en otro puerto,
+> `Get-Service postgresql*` los lista todos, y
+> `netstat -ano | findstr ":5433"` te confirma qué proceso está escuchando en cada
+> puerto. Ajustá el puerto en el resto de este manual si el tuyo es distinto.
 
 ---
 
@@ -53,14 +59,25 @@ Solo la primera vez (o si borraste `node_modules`):
 pnpm install
 ```
 
+Creá la base de datos una sola vez (si ya existe, este comando no hace nada malo):
+
+```powershell
+$env:PGPASSWORD = "Andrey0305#"
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -p 5433 -U postgres -c "CREATE DATABASE tubus;"
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -p 5433 -U postgres -d tubus -c "CREATE EXTENSION IF NOT EXISTS citext;"
+```
+
 Aplicar la estructura de la base de datos y cargarla con datos de ejemplo (empresa,
 buses, conductores, una ruta con paradas y horarios):
 
 ```powershell
-$env:DATABASE_URL = "postgresql://tubus:tubus@localhost:5432/tubus?schema=public"
+$env:DATABASE_URL = "postgresql://postgres:Andrey0305%23@localhost:5433/tubus?schema=public"
 pnpm --filter api exec prisma migrate deploy
 pnpm --filter api exec ts-node prisma/seed.ts
 ```
+
+> El `%23` en la URL es tu `#` "escapado" — así tiene que ir siempre que uses esta
+> contraseña dentro de una `DATABASE_URL`.
 
 Al final va a imprimir las credenciales de prueba. Guardalas — las vas a usar todo el
 manual:
@@ -75,9 +92,9 @@ drivers: driver24, driver31 (código de empresa: tuanrl)
 
 > Si en algún momento algo se ve "roto" o con datos raros (por ejemplo de pruebas
 > anteriores), podés reiniciar todo desde cero repitiendo este paso — `seed.ts` no
-> duplica nada, y si querés empezar 100% limpio primero corré
-> `docker compose down -v && docker compose up -d` para borrar el volumen de la base de
-> datos.
+> duplica nada. Si querés empezar 100% limpio (borrar todos los datos), corré primero
+> `& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -p 5433 -U postgres -c "DROP DATABASE tubus;"`
+> y luego repetí el bloque de arriba desde `CREATE DATABASE`.
 
 ---
 
@@ -88,7 +105,7 @@ Abrí **dos** terminales (dejalas corriendo, no las cierres).
 **Terminal A — backend:**
 
 ```powershell
-$env:DATABASE_URL = "postgresql://tubus:tubus@localhost:5432/tubus?schema=public"
+$env:DATABASE_URL = "postgresql://postgres:Andrey0305%23@localhost:5433/tubus?schema=public"
 $env:JWT_ACCESS_SECRET = "un-secreto-de-al-menos-16-caracteres"
 $env:JWT_REFRESH_SECRET = "otro-secreto-de-al-menos-16-caracteres"
 $env:ACCESS_TOKEN_TTL = "15m"
@@ -220,8 +237,15 @@ Conectá el celular por USB una sola vez, con "Depuración USB" activada en Opci
 desarrollador:
 
 ```powershell
-adb install -r app\build\outputs\apk\debug\app-debug.apk
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r app\build\outputs\apk\debug\app-debug.apk
 ```
+
+> Si preferís poder escribir simplemente `adb` sin la ruta completa: buscá "Editar las
+> variables de entorno del sistema" en el menú de inicio → botón **Variables de
+> entorno** → en "Variables de usuario", seleccioná `Path` → **Editar** → **Nuevo** →
+> pegá `%LOCALAPPDATA%\Android\Sdk\platform-tools`. Cerrá y volvé a abrir la terminal
+> para que tome efecto. (Evitá hacer esto por línea de comandos con `setx` — puede
+> truncar el PATH si es muy largo.)
 
 ### 7.4 Usarla sin cable
 
@@ -261,23 +285,25 @@ Acordate de devolverlo a su valor normal cuando termines de probar.
 
 ---
 
-## 8. Solución de problemas con Docker
+## 8. Solución de problemas con PostgreSQL
 
-Si `docker compose up -d` falla o Docker Desktop no arranca:
+Si algún comando de este manual no puede conectarse a la base de datos:
 
-1. Abrí Docker Desktop manualmente desde el menú de inicio y esperá a que la ballena
-   deje de animarse (significa que ya inició).
-2. Si sigue sin responder, reiniciá el servicio:
-   ```powershell
-   Restart-Service com.docker.service
-   ```
-   (puede pedir permisos de administrador).
-3. Si nada de eso funciona, no hace falta Docker para nada más que Postgres. Como
-   alternativa, instalá PostgreSQL 16 directo en Windows
-   (https://www.postgresql.org/download/windows/), creá una base `tubus` con usuario
-   `tubus`/contraseña `tubus`, y usá
-   `DATABASE_URL=postgresql://tubus:tubus@localhost:5432/tubus?schema=public` igual que
-   arriba — el resto del manual no cambia.
+1. Confirmá que el servicio está corriendo: `Get-Service postgresql*`. Si está
+   `Stopped`, arrancálo con `Start-Service postgresql-x64-18` (o el nombre que te haya
+   quedado a vos).
+2. Confirmá que está escuchando en el puerto que esperás:
+   `netstat -ano | findstr ":5433"` (o el puerto que corresponda). Si tenés más de una
+   versión de PostgreSQL instalada, cada una suele quedar en un puerto distinto — usá
+   el puerto real en vez del `5433` de este manual si son diferentes.
+3. Si la contraseña cambió o no es la que aparece en este manual, actualizá el
+   `DATABASE_URL` en cada comando (y en el archivo `.env` del proyecto) con la
+   contraseña correcta — recordá "escapar" cualquier `#` como `%23` dentro de la URL.
+4. Si preferís volver a usar Docker en lugar de tu PostgreSQL nativo, `docker compose
+up -d` sigue funcionando igual que antes — solo recordá que el `docker-compose.yml`
+   de este proyecto expone Postgres en el puerto `5432`, así que usarías
+   `DATABASE_URL=postgresql://tubus:tubus@localhost:5432/tubus?schema=public` en su
+   lugar (y necesitás Docker Desktop corriendo).
 
 ---
 
@@ -297,11 +323,12 @@ Todas son credenciales de desarrollo — no existen en ningún ambiente real.
 
 ## 10. Apagar todo al terminar
 
+No hace falta apagar PostgreSQL — es un servicio de Windows y no molesta corriendo en
+segundo plano. Si igual querés detenerlo:
+
 ```powershell
-docker compose down
+Stop-Service postgresql-x64-18
 ```
 
-Esto detiene Postgres sin borrar los datos (la próxima vez que hagas
-`docker compose up -d` van a seguir ahí). Si preferís borrar todo y empezar de cero la
-próxima vez: `docker compose down -v`. Las terminales del backend, el sitio web, el
-simulador y ngrok se cierran con `Ctrl+C` o cerrando la ventana.
+Los datos quedan intactos para la próxima vez. Las terminales del backend, el sitio
+web, el simulador y ngrok se cierran con `Ctrl+C` o cerrando la ventana.
