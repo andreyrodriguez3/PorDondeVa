@@ -168,6 +168,15 @@ export function MapView({
     return () => {
       removed = true;
       map.remove();
+      // Bus markers are cached by tripId in markersRef so position updates don't
+      // recreate them (that's what keeps movement smooth). But that cache is a ref —
+      // it outlives this effect. Without clearing it here, a marker created against
+      // this map instance becomes orphaned the moment the instance is torn down (its
+      // DOM node goes with it) and the next effect run sees a "marker" that already
+      // exists for that tripId, skips re-adding it to the new map, and the bus
+      // silently vanishes. This bit React 18 StrictMode's dev-only double-invoke of
+      // this effect especially hard: mount → add marker → cleanup → remount, gone.
+      markersRef.current.clear();
     };
     // Re-created whenever `geometry` changes (e.g. the passenger page's direction
     // switcher swaps in a different variant's LineString) — otherwise only once,
