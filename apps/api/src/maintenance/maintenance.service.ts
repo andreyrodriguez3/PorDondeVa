@@ -62,10 +62,17 @@ export class MaintenanceService {
 
     if (staleTrips.length === 0) return;
 
-    await this.prisma.trip.updateMany({
-      where: { id: { in: staleTrips.map((t) => t.id) } },
-      data: { status: 'COMPLETED', endedAt: new Date(), endReason: 'AUTO_TIMEOUT' },
-    });
+    const staleTripIds = staleTrips.map((t) => t.id);
+    await this.prisma.$transaction([
+      this.prisma.trip.updateMany({
+        where: { id: { in: staleTripIds } },
+        data: { status: 'COMPLETED', endedAt: new Date(), endReason: 'AUTO_TIMEOUT' },
+      }),
+      // See the matching note in TripsService.end() — TripLiveState survives a status
+      // update (its cascade delete only fires on row deletion), so without this an
+      // auto-timed-out trip keeps showing as a permanent offline "ghost" bus.
+      this.prisma.tripLiveState.deleteMany({ where: { tripId: { in: staleTripIds } } }),
+    ]);
     this.logger.log(
       `Auto-completed ${staleTrips.length} trip(s) silent for over ${timeoutMinutes} minutes.`,
     );
