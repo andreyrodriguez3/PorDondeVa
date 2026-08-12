@@ -23,7 +23,7 @@ test('passenger watches a simulated bus appear and move on the route page', asyn
       'ts-node',
       'src/cli.ts',
       '--route',
-      'sanjose-palmares',
+      'alajuela-naranjo',
       '--bus',
       'Bus 24',
       '--speed',
@@ -34,6 +34,8 @@ test('passenger watches a simulated bus appear and move on the route page', asyn
       'admin.tubus.localhost',
       '--api-url',
       'http://localhost:8080',
+      '--company',
+      'rutaejemplo',
     ],
     { cwd: simulatorDir, shell: true, stdio: 'pipe' },
   );
@@ -47,9 +49,9 @@ test('passenger watches a simulated bus appear and move on the route page', asyn
   // would legitimately show no active buses yet.
   await expect.poll(() => simulatorOutput.includes('accepted'), { timeout: 15_000 }).toBe(true);
 
-  await page.goto('/r/sanjose-palmares');
+  await page.goto('/r/alajuela-naranjo');
 
-  await expect(page.getByRole('heading', { name: 'San José → Palmares' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Alajuela ↔ Naranjo' })).toBeVisible();
   await expect(page.getByText('Bus 24')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(/en vivo/i)).toBeVisible({ timeout: 15_000 });
 });

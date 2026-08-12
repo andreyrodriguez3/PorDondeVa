@@ -4,7 +4,7 @@ import { driverLoginRequestSchema, webLoginRequestSchema } from './auth';
 describe('webLoginRequestSchema', () => {
   it('accepts a valid email and password', () => {
     const result = webLoginRequestSchema.safeParse({
-      email: 'admin@tuanrl.example',
+      email: 'admin@rutaejemplo.example',
       password: 'hunter2',
     });
     expect(result.success).toBe(true);
@@ -22,7 +22,7 @@ describe('webLoginRequestSchema', () => {
 describe('driverLoginRequestSchema', () => {
   it('requires companyCode, username and password', () => {
     const result = driverLoginRequestSchema.safeParse({
-      companyCode: 'tuanrl',
+      companyCode: 'rutaejemplo',
       username: 'driver24',
       password: 'hunter2',
     });

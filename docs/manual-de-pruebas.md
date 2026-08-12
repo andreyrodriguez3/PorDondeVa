@@ -85,10 +85,25 @@ manual:
 ```
 password: ChangeMe123!
 super admin: super@tubus.dev
-company admin: admin@tuanrl.dev
-operator: operator@tuanrl.dev
-drivers: driver24, driver31 (código de empresa: tuanrl)
+
+RutaEjemplo (empresa de ejemplo, código: rutaejemplo):
+  company admin: admin@rutaejemplo.dev
+  operator: operator@rutaejemplo.dev
+  drivers: driver24, driver31
+
+Andrey (para tus pruebas de campo con celular, código: andrey):
+  company admin: admin@andrey.dev
+  driver: prueba1
 ```
+
+> El seed crea **dos** empresas. **RutaEjemplo** es de ejemplo/prueba — no es una
+> empresa real — y tiene dos rutas reales de Tuan R.L. (usadas solo como datos de
+> prueba, no afiliadas a esa empresa): _Alajuela ↔ Naranjo_ y _Grecia ↔ San José_.
+> **Andrey** es una segunda empresa pensada para tus pruebas de campo (instalar la app
+> en un celular real y salir a caminar/manejar) — no tiene una ruta con trazado real,
+> porque lo que te interesa ahí es el recorrido que efectivamente hizo el celular (ver
+> el paso 6, "Viajes" → el detalle de un viaje dibuja el recorrido real, no la ruta
+> preestablecida).
 
 > Si en algún momento algo se ve "roto" o con datos raros (por ejemplo de pruebas
 > anteriores), podés reiniciar todo desde cero repitiendo este paso — `seed.ts` no
@@ -136,15 +151,15 @@ Esperá a ver `Ready`. El sitio ya está en `http://localhost:3000`.
 Abrí en el navegador:
 
 ```
-http://tuanrl.localhost:3000
+http://rutaejemplo.localhost:3000
 ```
 
 > `*.localhost` funciona automáticamente en Chrome, Edge y Firefox — no hace falta
 > configurar nada.
 
-Deberías ver la página de la empresa "Tuan RL" con la ruta "San José → Palmares".
-Entrá a la ruta y vas a ver el mapa, la lista de paradas y los horarios. Todavía no hay
-ningún bus circulando — eso es lo siguiente.
+Deberías ver la página de la empresa "RutaEjemplo" con las rutas "Alajuela ↔ Naranjo"
+y "Grecia ↔ San José". Entrá a una ruta y vas a ver el mapa, la lista de paradas y los
+horarios. Todavía no hay ningún bus circulando — eso es lo siguiente.
 
 ---
 
@@ -153,18 +168,18 @@ ningún bus circulando — eso es lo siguiente.
 En una tercera terminal:
 
 ```powershell
-pnpm simulate --route sanjose-palmares --bus "Bus 24" --speed 60
+pnpm simulate --route alajuela-naranjo --bus "Bus 24" --speed 60
 ```
 
 Volvé a la pestaña del navegador con la ruta abierta — en unos segundos el bus va a
 aparecer en el mapa y empezar a moverse. Podés tocar la tarjeta del bus para que el
-mapa se centre en él, o cambiar de dirección con el selector "Hacia Palmares / Hacia
-San José".
+mapa se centre en él, o cambiar de dirección con el selector "Hacia Naranjo / Hacia
+Alajuela".
 
 Para simular una pérdida de señal y su recuperación:
 
 ```powershell
-pnpm simulate --route sanjose-palmares --bus "Bus 31" --speed 60 --drop-network-after 30 --reconnect-after 60
+pnpm simulate --route alajuela-naranjo --bus "Bus 31" --speed 60 --drop-network-after 30 --reconnect-after 60
 ```
 
 `Ctrl+C` en esa terminal detiene el bus (el viaje queda activo pero sin señal — así se
@@ -180,7 +195,7 @@ Abrí:
 http://admin.tubus.localhost:3000
 ```
 
-Iniciá sesión con `admin@tuanrl.dev` / `ChangeMe123!`. Desde ahí podés:
+Iniciá sesión con `admin@rutaejemplo.dev` / `ChangeMe123!`. Desde ahí podés:
 
 - **Flota en vivo** — mapa con todos los buses circulando ahora.
 - **Viajes** — historial completo; entrá a uno para ver su recorrido dibujado en el
@@ -251,23 +266,24 @@ desarrollador:
 
 Desconectá el USB. Abrí la app "TuBus Conductor" en el celular — funciona con datos
 móviles o wifi, no importa cuál, porque ya sabe hablarle a la URL pública de ngrok en
-lugar de a tu red local. Iniciá sesión:
+lugar de a tu red local. Iniciá sesión con la empresa **Andrey** — es la que existe
+específicamente para esto: no tiene una ruta real preestablecida, así que lo que
+importa es el recorrido que el celular efectivamente hizo, no una ruta dibujada de
+antemano:
 
-- **Código de empresa:** `tuanrl`
-- **Usuario:** `driver24` (o `driver31`)
+- **Código de empresa:** `andrey`
+- **Usuario:** `prueba1`
 - **Contraseña:** `ChangeMe123!`
 
-Elegí una ruta y tocá **Iniciar viaje**. A partir de ahí podés meter el celular en el
-carro y salir a manejar — mientras la PC siga prendida, el backend siga corriendo, y
-la terminal de ngrok siga abierta, las posiciones van a llegar. Abrí
-`http://tuanrl.localhost:3000/r/sanjose-palmares` desde otra PC o celular (en la misma
-red que tu PC, o usando la misma URL de ngrok apuntada al puerto del sitio web si
-querés verlo desde afuera también) para verte a vos mismo moviéndote en el mapa.
-
-> **Si además querés ver el sitio del pasajero desde el celular, fuera de tu red
-> wifi de casa:** abrí una segunda terminal de ngrok para el sitio web:
-> `ngrok http 3000`, y en el celular usá esa URL en lugar de `tuanrl.localhost:3000`
-> (vas a necesitar loguearte o navegar directo a `/r/sanjose-palmares` en esa URL).
+Elegí "Recorrido libre" y tocá **Iniciar viaje**. A partir de ahí podés meter el
+celular en el carro (o dárselo a alguien más para que camine/viaje con él) y salir —
+mientras la PC siga prendida, el backend siga corriendo, y la terminal de ngrok siga
+abierta, las posiciones van a llegar. Para ver el recorrido en tiempo real (o después,
+ya terminado), entrá al panel administrativo (paso 6) con `admin@andrey.dev` /
+`ChangeMe123!` → **Flota en vivo** mientras está en curso, o **Viajes** → el viaje en
+cuestión para ver el recorrido real dibujado sobre el mapa una vez finalizado. Ahí
+mismo vas a poder notar cualquier corte de señal (huecos en el trazado, o el estado
+"Sin señal") si el celular perdió cobertura en el camino.
 
 ### 7.5 Mantener la PC despierta
 
@@ -309,13 +325,15 @@ up -d` sigue funcionando igual que antes — solo recordá que el `docker-compos
 
 ## 9. Referencia rápida de credenciales
 
-| Rol                         | Usuario                             | Contraseña     |
-| --------------------------- | ----------------------------------- | -------------- |
-| Super admin (plataforma)    | `super@tubus.dev`                   | `ChangeMe123!` |
-| Administrador de la empresa | `admin@tuanrl.dev`                  | `ChangeMe123!` |
-| Operador                    | `operator@tuanrl.dev`               | `ChangeMe123!` |
-| Conductor 1                 | código `tuanrl`, usuario `driver24` | `ChangeMe123!` |
-| Conductor 2                 | código `tuanrl`, usuario `driver31` | `ChangeMe123!` |
+| Rol                                       | Usuario                                  | Contraseña     |
+| ----------------------------------------- | ---------------------------------------- | -------------- |
+| Super admin (plataforma)                  | `super@tubus.dev`                        | `ChangeMe123!` |
+| **RutaEjemplo** — admin                   | `admin@rutaejemplo.dev`                  | `ChangeMe123!` |
+| **RutaEjemplo** — operador                | `operator@rutaejemplo.dev`               | `ChangeMe123!` |
+| **RutaEjemplo** — conductor 1             | código `rutaejemplo`, usuario `driver24` | `ChangeMe123!` |
+| **RutaEjemplo** — conductor 2             | código `rutaejemplo`, usuario `driver31` | `ChangeMe123!` |
+| **Andrey** (pruebas de campo) — admin     | `admin@andrey.dev`                       | `ChangeMe123!` |
+| **Andrey** (pruebas de campo) — conductor | código `andrey`, usuario `prueba1`       | `ChangeMe123!` |
 
 Todas son credenciales de desarrollo — no existen en ningún ambiente real.
 

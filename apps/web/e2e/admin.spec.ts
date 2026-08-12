@@ -23,7 +23,7 @@ test('admin creates a route with a variant and a stop, and it appears on the pub
   page,
 }) => {
   await page.goto(`${ADMIN_BASE}/login`);
-  await page.getByLabel('Correo electrónico').fill('admin@tuanrl.dev');
+  await page.getByLabel('Correo electrónico').fill('admin@rutaejemplo.dev');
   await page.getByLabel('Contraseña').fill('ChangeMe123!');
   await page.getByRole('button', { name: 'Ingresar' }).click();
   await page.waitForURL(`${ADMIN_BASE}/live`);
@@ -74,7 +74,7 @@ test('admin creates a route with a variant and a stop, and it appears on the pub
     timeout: 10_000,
   });
 
-  await page.goto(`http://tuanrl.localhost:3100/r/${SLUG}`);
+  await page.goto(`http://rutaejemplo.localhost:3100/r/${SLUG}`);
   await expect(page.getByText('Origen E2E → Destino E2E')).toBeVisible();
   await expect(page.getByText(stopName)).toBeVisible();
 });

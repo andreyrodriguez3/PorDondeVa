@@ -98,7 +98,7 @@ function RoutesContent() {
               pattern="[a-z0-9-]+"
               value={publicSlug}
               onChange={(e) => setPublicSlug(e.target.value)}
-              placeholder="sanjose-palmares"
+              placeholder="alajuela-naranjo"
             />
           </div>
           <Button type="submit" loading={submitting}>
