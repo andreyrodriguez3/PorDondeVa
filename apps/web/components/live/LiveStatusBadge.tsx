@@ -4,6 +4,12 @@ import { useEffect, useState } from 'react';
 import type { PublicBusUpdate } from '@tubus/contracts';
 import { relativeTimeLabel, stateColor, stateLabel } from '@/lib/liveStatus';
 
+const TONE_CLASS: Record<PublicBusUpdate['state'], string> = {
+  LIVE: 'text-live',
+  STALE: 'text-stale',
+  OFFLINE: 'text-offline',
+};
+
 /**
  * Renders `—` until mounted, then fills in the relative time client-side (README.md —
  * avoids a hydration mismatch and prevents a cached page from showing a frozen
@@ -20,13 +26,21 @@ export function LiveStatusBadge({ bus }: { bus: PublicBusUpdate }) {
   }, [bus.deviceTimestamp]);
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-sm">
-      <span
-        className="inline-block h-2.5 w-2.5 rounded-full"
-        style={{ backgroundColor: stateColor[bus.state] }}
-      />
-      <span className="font-medium">{stateLabel[bus.state]}</span>
-      <span className="text-gray-400">{label ?? '—'}</span>
+    <span className="inline-flex items-center gap-1.5 text-callout">
+      <span className="relative inline-flex h-2 w-2">
+        {bus.state === 'LIVE' ? (
+          <span
+            className="absolute inline-flex h-full w-full animate-pulse-ring rounded-full"
+            style={{ backgroundColor: stateColor[bus.state] }}
+          />
+        ) : null}
+        <span
+          className="relative inline-block h-2 w-2 rounded-full"
+          style={{ backgroundColor: stateColor[bus.state] }}
+        />
+      </span>
+      <span className={`font-semibold ${TONE_CLASS[bus.state]}`}>{stateLabel[bus.state]}</span>
+      <span className="text-ink-tertiary">{label ?? '—'}</span>
     </span>
   );
 }
