@@ -108,11 +108,18 @@ export class TripsService {
       throw new ConflictException('Trip is not active.');
     }
 
-    const updated = await this.prisma.trip.update({
-      where: { id: tripId },
-      data: { status: 'COMPLETED', endedAt: new Date(), endReason: reason },
-      include: TRIP_LABEL_INCLUDE,
-    });
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.trip.update({
+        where: { id: tripId },
+        data: { status: 'COMPLETED', endedAt: new Date(), endReason: reason },
+        include: TRIP_LABEL_INCLUDE,
+      }),
+      // TripLiveState is a separate row keyed by tripId, not derived from trip.status —
+      // ending the trip without also deleting it leaves a permanent "ghost" bus on the
+      // live map/route page (still queried by LiveService), since the cascade delete on
+      // this relation only fires when the Trip row itself is deleted, never on update.
+      this.prisma.tripLiveState.deleteMany({ where: { tripId } }),
+    ]);
     return toResponse(updated);
   }
 
