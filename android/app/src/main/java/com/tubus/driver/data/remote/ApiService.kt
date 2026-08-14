@@ -1,5 +1,6 @@
 package com.tubus.driver.data.remote
 
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -15,8 +16,10 @@ interface ApiService {
     @GET("driver/assignment")
     suspend fun assignment(): DriverAssignmentResponse
 
+    /** Wrapped in [Response] because Retrofit's suspend-nullable-body detection is
+     * unreliable for a 204 (no active trip) — see TripRepository.getActiveTrip. */
     @GET("driver/trips/active")
-    suspend fun activeTrip(): TripDto?
+    suspend fun activeTrip(): Response<TripDto>
 
     @POST("driver/trips")
     suspend fun startTrip(@Body body: StartTripRequest): TripDto
