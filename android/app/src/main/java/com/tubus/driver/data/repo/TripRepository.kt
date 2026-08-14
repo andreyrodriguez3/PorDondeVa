@@ -12,7 +12,7 @@ class TripRepository @Inject constructor(private val api: ApiService) {
     suspend fun getAssignment(): DriverAssignmentResponse = api.assignment()
 
     /** Recovers an in-progress trip after a crash or restart (README.md). */
-    suspend fun getActiveTrip(): TripDto? = api.activeTrip()
+    suspend fun getActiveTrip(): TripDto? = api.activeTrip().body()
 
     suspend fun startTrip(routeVariantId: String, busId: String?): TripDto =
         api.startTrip(StartTripRequest(routeVariantId, busId))
