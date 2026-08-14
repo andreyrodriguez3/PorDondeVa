@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { BusResponse, DriverResponse } from '@tubus/contracts';
 import { adminFetch } from '@/lib/adminAuth';
 import { AdminShell } from '@/components/admin/AdminShell';
@@ -14,6 +15,9 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/Table';
 import { DriverIcon } from '@/components/admin/icons';
+import { springOrFade } from '@/lib/motionPresets';
+
+const MIN_PASSWORD_LENGTH = 10;
 
 export default function DriversPage() {
   return (
@@ -33,6 +37,7 @@ function DriversContent() {
   const [defaultBusId, setDefaultBusId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [resetTarget, setResetTarget] = useState<DriverResponse | null>(null);
 
   async function load() {
     setLoading(true);
@@ -98,7 +103,7 @@ function DriversContent() {
               label="Contraseña"
               type="password"
               required
-              minLength={8}
+              minLength={MIN_PASSWORD_LENGTH}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -140,6 +145,7 @@ function DriversContent() {
               <TH>Usuario</TH>
               <TH>Bus asignado</TH>
               <TH>Estado</TH>
+              <TH>&nbsp;</TH>
             </TR>
           </THead>
           <TBody>
@@ -155,11 +161,122 @@ function DriversContent() {
                     {driver.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}
                   </Badge>
                 </TD>
+                <TD className="text-right">
+                  <button
+                    type="button"
+                    onClick={() => setResetTarget(driver)}
+                    className="text-caption font-medium text-ink-tertiary hover:text-brand"
+                  >
+                    Restablecer contraseña
+                  </button>
+                </TD>
               </TR>
             ))}
           </TBody>
         </Table>
       )}
+
+      <ResetPasswordDialog
+        driver={resetTarget}
+        onClose={() => setResetTarget(null)}
+        onDone={(name) => toast.show(`Contraseña de "${name}" actualizada`, 'success')}
+      />
     </div>
+  );
+}
+
+function ResetPasswordDialog({
+  driver,
+  onClose,
+  onDone,
+}: {
+  driver: DriverResponse | null;
+  onClose: () => void;
+  onDone: (driverName: string) => void;
+}) {
+  const toast = useToast();
+  const reduced = useReducedMotion();
+  const [newPassword, setNewPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setNewPassword('');
+  }, [driver]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!driver) return;
+    setSubmitting(true);
+    try {
+      await adminFetch(`/drivers/${driver.id}/password`, {
+        method: 'PATCH',
+        body: { password: newPassword },
+      });
+      onDone(driver.name);
+      onClose();
+    } catch (err) {
+      toast.show(
+        err instanceof Error ? err.message : 'No se pudo restablecer la contraseña.',
+        'error',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <AnimatePresence>
+      {driver ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            className="absolute inset-0 bg-scrim backdrop-blur-[2px]"
+            {...springOrFade(Boolean(reduced), {
+              initial: { opacity: 0 },
+              animate: { opacity: 1 },
+              exit: { opacity: 0 },
+              transition: { duration: 0.18 },
+            })}
+            onClick={onClose}
+          />
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            {...springOrFade(Boolean(reduced), {
+              initial: { opacity: 0, scale: 0.94, y: 8 },
+              animate: { opacity: 1, scale: 1, y: 0 },
+              exit: { opacity: 0, scale: 0.96, y: 4 },
+              transition: { type: 'spring', bounce: 0, duration: 0.3 },
+            })}
+            className="relative w-full max-w-sm rounded-lg bg-surface p-5 shadow-elevate-3"
+          >
+            <h2 className="text-title text-ink">Restablecer contraseña</h2>
+            <p className="mt-1.5 text-callout text-ink-secondary">
+              Nueva contraseña para <span className="font-medium text-ink">{driver.name}</span>{' '}
+              (usuario {driver.username}). Va a tener que cambiarla la próxima vez que inicie
+              sesión.
+            </p>
+            <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
+              <Input
+                label="Contraseña nueva"
+                type="password"
+                autoFocus
+                required
+                minLength={MIN_PASSWORD_LENGTH}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="secondary" size="sm" onClick={onClose}>
+                  Cancelar
+                </Button>
+                <Button type="submit" size="sm" loading={submitting}>
+                  Restablecer
+                </Button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      ) : null}
+    </AnimatePresence>
   );
 }

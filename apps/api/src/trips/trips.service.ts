@@ -123,6 +123,37 @@ export class TripsService {
     return toResponse(updated);
   }
 
+  // A22 — cancel is for a trip that never really started (wrong bus tapped, driver
+  // backed out immediately), not an alternate ending for one already underway. Once a
+  // single GPS point has landed, "cancel" would be misleading — that's what "end" is
+  // for — so this stays a distinct, narrower action rather than end() with a flag.
+  async cancel(companyId: string, tripId: string): Promise<TripResponse> {
+    const trip = await this.prisma.scoped.trip.findFirst({ where: { companyId, id: tripId } });
+    if (!trip) throw new NotFoundException();
+    if (trip.status !== 'ACTIVE') {
+      throw new ConflictException('Trip is not active.');
+    }
+
+    const pointCount = await this.prisma.scoped.locationPoint.count({
+      where: { companyId, tripId },
+    });
+    if (pointCount > 0) {
+      throw new ConflictException(
+        'This trip already has GPS points recorded — end it instead of cancelling.',
+      );
+    }
+
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.trip.update({
+        where: { id: tripId },
+        data: { status: 'CANCELLED', endedAt: new Date() },
+        include: TRIP_LABEL_INCLUDE,
+      }),
+      this.prisma.tripLiveState.deleteMany({ where: { tripId } }),
+    ]);
+    return toResponse(updated);
+  }
+
   async list(companyId: string, status?: string): Promise<TripResponse[]> {
     const trips = await this.prisma.scoped.trip.findMany({
       where: { companyId, ...(status ? { status: status as never } : {}) },

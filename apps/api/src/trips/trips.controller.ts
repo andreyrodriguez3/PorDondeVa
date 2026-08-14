@@ -39,4 +39,13 @@ export class TripsController {
   end(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.trips.end(requireCompanyId(user), id, 'ADMIN');
   }
+
+  // Restricted beyond the class-level OPERATOR access — cancelling (vs. ending) a trip
+  // is rare enough, and different enough in meaning, that it stays a COMPANY_ADMIN call.
+  @Roles('COMPANY_ADMIN')
+  @HttpCode(HttpStatus.OK)
+  @Post(':id/cancel')
+  cancel(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
+    return this.trips.cancel(requireCompanyId(user), id);
+  }
 }

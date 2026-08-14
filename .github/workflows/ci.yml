@@ -71,3 +71,24 @@ jobs:
 
       - name: End-to-end test
         run: pnpm --filter api run test:e2e
+
+  # Railway's own GitHub-App deploy trigger for this service has broken silently before
+  # (found 2026-08-14: the dashboard's "Branch connected to production" showed
+  # "GitHub Repo not found" and had been stale by 17+ commits) with no visible failure
+  # anywhere — production just quietly stopped updating on merge. This job is a second,
+  # independent path that doesn't depend on that dashboard integration at all: it uploads
+  # the checked-out source straight to Railway with the CLI, the same way the fix that
+  # day was actually shipped. Requires a `RAILWAY_TOKEN` repo secret — Railway dashboard
+  # → PorDondeVa service → Settings → Tokens → "Create Token" (scoped to this service's
+  # production environment) → GitHub repo → Settings → Secrets and variables → Actions.
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Railway
+        run: npx --yes @railway/cli up --service PorDondeVa --ci --yes
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
