@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useReducedMotion } from 'motion/react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { PublicBusUpdate, PublicStop } from '@tubus/contracts';
@@ -81,6 +82,7 @@ function createStopElement(name: string, sequence: number): HTMLDivElement {
 
 function createBusElement(label: string): HTMLDivElement {
   const el = document.createElement('div');
+  el.setAttribute('aria-label', `Bus ${label}`);
 
   const wrapper = document.createElement('div');
   wrapper.className = 'tubus-marker-wrapper relative flex items-center justify-center';
@@ -103,8 +105,10 @@ function createBusElement(label: string): HTMLDivElement {
     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 16.5V6.8C4 5.25 5.3 4 6.9 4h10.2C18.7 4 20 5.25 20 6.8v9.7c0 1.05-.86 1.9-1.93 1.9H5.93A1.93 1.93 0 0 1 4 16.5Z" fill="white"/><rect x="6" y="6.4" width="12" height="5" rx="1" fill="var(--tubus-marker-color, #1fb15c)"/><circle cx="7.6" cy="19" r="1.6" fill="white"/><circle cx="16.4" cy="19" r="1.6" fill="white"/></svg>';
 
   const badge = document.createElement('span');
+  // Fixed dark chip regardless of theme, like the tooltip in ShareButton.tsx — not
+  // `bg-ink`, which goes near-white in dark mode and would make this text illegible.
   badge.className =
-    'absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-ink/85 px-2 py-0.5 text-[10px] font-semibold text-white shadow-elevate-1';
+    'absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#14171f]/85 px-2 py-0.5 text-[10px] font-semibold text-white shadow-elevate-1';
   badge.textContent = label;
 
   wrapper.append(ring, dot, badge);
@@ -126,6 +130,7 @@ export function MapView({
   const animsRef = useRef(new Map<string, number>()); // tripId -> requestAnimationFrame id
   const offsetsRef = useRef(new Map<string, { x: number; y: number }>()); // tripId -> in-flight glide offset (px)
   const fitToBusesRef = useRef(!geometry);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -287,37 +292,46 @@ export function MapView({
         if (prevRaf !== undefined) cancelAnimationFrame(prevRaf);
 
         if (from.lng !== to.lng || from.lat !== to.lat) {
-          const prevOffset = offsetsRef.current.get(bus.tripId) ?? { x: 0, y: 0 };
-          const fromPx = map.project(from);
-          const toPx = map.project(to);
-          activeMarker.setLngLat([to.lng, to.lat]);
+          if (reducedMotion) {
+            // apple-design §14 — reduced motion is a snap, not a slower version of the
+            // same glide. setLngLat below already moves the true marker; leaving the
+            // wrapper's translate at its rest position (0,0) means it just appears at
+            // the new fix with no travel.
+            activeMarker.setLngLat([to.lng, to.lat]);
+            offsetsRef.current.delete(bus.tripId);
+          } else {
+            const prevOffset = offsetsRef.current.get(bus.tripId) ?? { x: 0, y: 0 };
+            const fromPx = map.project(from);
+            const toPx = map.project(to);
+            activeMarker.setLngLat([to.lng, to.lat]);
 
-          // Where the marker was actually drawn a moment ago (its old anchor plus
-          // whatever glide offset was still in flight), expressed relative to the new
-          // anchor — that's the offset to start this animation from so there's no
-          // visual jump at the handoff.
-          const startOffset = {
-            x: fromPx.x + prevOffset.x - toPx.x,
-            y: fromPx.y + prevOffset.y - toPx.y,
-          };
-          const wrapperEl = activeMarker.getElement().querySelector<HTMLElement>(
-            '.tubus-marker-wrapper',
-          );
+            // Where the marker was actually drawn a moment ago (its old anchor plus
+            // whatever glide offset was still in flight), expressed relative to the new
+            // anchor — that's the offset to start this animation from so there's no
+            // visual jump at the handoff.
+            const startOffset = {
+              x: fromPx.x + prevOffset.x - toPx.x,
+              y: fromPx.y + prevOffset.y - toPx.y,
+            };
+            const wrapperEl = activeMarker.getElement().querySelector<HTMLElement>(
+              '.tubus-marker-wrapper',
+            );
 
-          const startedAt = performance.now();
-          const step = (now: number) => {
-            const t = Math.min(1, (now - startedAt) / MARKER_ANIMATION_MS);
-            const offset = { x: lerp(startOffset.x, 0, t), y: lerp(startOffset.y, 0, t) };
-            offsetsRef.current.set(bus.tripId, offset);
-            if (wrapperEl) wrapperEl.style.translate = `${offset.x}px ${offset.y}px`;
-            if (t < 1) {
-              animsRef.current.set(bus.tripId, requestAnimationFrame(step));
-            } else {
-              animsRef.current.delete(bus.tripId);
-              offsetsRef.current.delete(bus.tripId);
-            }
-          };
-          animsRef.current.set(bus.tripId, requestAnimationFrame(step));
+            const startedAt = performance.now();
+            const step = (now: number) => {
+              const t = Math.min(1, (now - startedAt) / MARKER_ANIMATION_MS);
+              const offset = { x: lerp(startOffset.x, 0, t), y: lerp(startOffset.y, 0, t) };
+              offsetsRef.current.set(bus.tripId, offset);
+              if (wrapperEl) wrapperEl.style.translate = `${offset.x}px ${offset.y}px`;
+              if (t < 1) {
+                animsRef.current.set(bus.tripId, requestAnimationFrame(step));
+              } else {
+                animsRef.current.delete(bus.tripId);
+                offsetsRef.current.delete(bus.tripId);
+              }
+            };
+            animsRef.current.set(bus.tripId, requestAnimationFrame(step));
+          }
         }
       }
       const el = marker.getElement();
@@ -329,7 +343,7 @@ export function MapView({
       const ring = el.querySelector<HTMLElement>('.tubus-marker-ring');
       if (ring) ring.classList.toggle('animate-pulse-ring', bus.state === 'LIVE');
     }
-  }, [buses, focusTripId, onSelectBus]);
+  }, [buses, focusTripId, onSelectBus, reducedMotion]);
 
   useEffect(() => {
     if (!focusTripId) return;

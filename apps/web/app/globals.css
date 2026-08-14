@@ -16,6 +16,74 @@ body {
    keeps first paint looking intentional instead of browser-default Times/Arial. */
 :root {
   --brand-glow: color-mix(in srgb, var(--brand-color, #3d5afe) 16%, transparent);
+
+  /* Light palette (default). tailwind.config.js's color tokens all reference these —
+     changing a value here changes it everywhere at once, no per-component `dark:`
+     classes needed. */
+  --ink: #0f1115;
+  --ink-secondary: #565d6b;
+  --ink-tertiary: #8991a0;
+  --surface: #ffffff;
+  --surface-secondary: #f5f6f8;
+  --surface-tertiary: #eceef2;
+  --line: #e4e6ea;
+  --line-strong: #d3d6dc;
+  --live: #1fb15c;
+  --live-bg: #e7f8ee;
+  --stale: #d98c14;
+  --stale-bg: #fdf3e1;
+  --offline: #8991a0;
+  --offline-bg: #f0f1f3;
+  --danger: #e0483e;
+  --danger-bg: #fdecea;
+  /* Always dark, in both themes — a modal scrim dims the page behind it; it isn't a
+     surface that should flip with `--ink` (which goes near-white in dark mode). */
+  --scrim: rgb(15 17 21 / 40%);
+}
+
+/* Dark palette from OS preference, unless the user picked "claro" explicitly (see
+   lib/theme.tsx) — [data-theme="light"] on <html> wins over the media query here. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --ink: #edeef1;
+    --ink-secondary: #a8adba;
+    --ink-tertiary: #6b7280;
+    --surface: #121418;
+    --surface-secondary: #1a1d23;
+    --surface-tertiary: #23262e;
+    --line: #2a2d36;
+    --line-strong: #3a3e4a;
+    --live: #34d399;
+    --live-bg: #113828;
+    --stale: #f0a93a;
+    --stale-bg: #3a2b0d;
+    --offline: #9198a6;
+    --offline-bg: #262932;
+    --danger: #f2665c;
+    --danger-bg: #3a1613;
+    --scrim: rgb(0 0 0 / 60%);
+  }
+}
+
+/* Explicit "oscuro" choice wins over both the media query and the default light root. */
+:root[data-theme='dark'] {
+  --ink: #edeef1;
+  --ink-secondary: #a8adba;
+  --ink-tertiary: #6b7280;
+  --surface: #121418;
+  --surface-secondary: #1a1d23;
+  --surface-tertiary: #23262e;
+  --line: #2a2d36;
+  --line-strong: #3a3e4a;
+  --live: #34d399;
+  --live-bg: #113828;
+  --stale: #f0a93a;
+  --stale-bg: #3a2b0d;
+  --offline: #9198a6;
+  --offline-bg: #262932;
+  --danger: #f2665c;
+  --danger-bg: #3a1613;
+  --scrim: rgb(0 0 0 / 60%);
 }
 
 * {

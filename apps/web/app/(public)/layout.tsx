@@ -2,6 +2,7 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { getCompany } from '@/lib/api';
 import { copy } from '@/lib/copy';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 
 // This tree's content is entirely a function of the request's Host header (which
 // company it resolves to), so it can never be safely served from Next's static/route
@@ -39,6 +40,7 @@ export default async function PublicLayout({ children }: { children: React.React
             </span>
           )}
           <span className="text-title text-ink">{company.name}</span>
+          <ThemeToggle className="ml-auto" />
         </div>
       </header>
       <main className="flex-1">{children}</main>
