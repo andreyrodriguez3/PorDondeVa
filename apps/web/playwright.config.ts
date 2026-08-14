@@ -19,7 +19,7 @@ export default defineConfig({
   retries: 0,
   reporter: 'list',
   use: {
-    baseURL: `http://tuanrl.localhost:${PORT}`,
+    baseURL: `http://rutaejemplo.localhost:${PORT}`,
     trace: 'retain-on-failure',
   },
   webServer: [

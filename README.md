@@ -16,7 +16,7 @@ TuBus is a multi-tenant platform that lets a bus company put its live fleet on a
 
 **For companies** — a web dashboard to manage buses, drivers, routes, route variants, stops and schedules; watch the live fleet; inspect active and completed trips with full location playback; and generate printable QR codes that take a passenger straight to a live route map.
 
-Each company is an isolated tenant with its own hostname — either a platform subdomain (`tuanrl.tubus.example`) or its own domain (`rutas.tuanrl.com`).
+Each company is an isolated tenant with its own hostname — either a platform subdomain (`rutaejemplo.tubus.example`) or its own domain (`rutas.rutaejemplo.com`).
 
 **Not in the MVP:** ETA prediction, ticketing, payments, passenger accounts or apps, iOS, hardware GPS trackers. See [SPECS.md](SPECS.md) §44.
 
@@ -154,11 +154,11 @@ pnpm db:seed
 
 Then open:
 
-| URL                             | What it is                               |
-| ------------------------------- | ---------------------------------------- |
-| `http://tuanrl.localhost:3000`  | Passenger surface for the seeded company |
-| `http://admin.localhost:3000`   | Admin dashboard                          |
-| `http://localhost:8080/healthz` | Backend liveness                         |
+| URL                                 | What it is                               |
+| ----------------------------------- | ---------------------------------------- |
+| `http://rutaejemplo.localhost:3000` | Passenger surface for the seeded company |
+| `http://admin.localhost:3000`       | Admin dashboard                          |
+| `http://localhost:8080/healthz`     | Backend liveness                         |
 
 Seed credentials are printed by `pnpm db:seed` and are development-only.
 
@@ -167,7 +167,7 @@ Seed credentials are printed by `pnpm db:seed` and are development-only.
 ### See a bus move
 
 ```bash
-pnpm simulate --route sanjose-palmares --bus "Bus 24" --speed 60
+pnpm simulate --route alajuela-naranjo --bus "Bus 24" --speed 60
 ```
 
 Open the route page and the marker moves. The seed data creates the company, an admin, an operator, drivers, buses, the route _San José → Palmares_ with two directional variants and real polyline geometry, five stops, and a weekday schedule — so steps 1–7 of the MVP acceptance scenario are already satisfied when you start.
@@ -217,7 +217,7 @@ pnpm --filter web build           # production build
 Speaks the same API as the Android app, so it exercises the real pipeline end to end.
 
 ```bash
-pnpm simulate --route sanjose-palmares --bus "Bus 24" \
+pnpm simulate --route alajuela-naranjo --bus "Bus 24" \
               --speed 60 --interval 5 \
               --drop-network-after 60 --reconnect-after 120
 ```
@@ -334,7 +334,7 @@ Android does not permit starting a location foreground service after a reboot. I
 
 ### Loading a route page
 
-`GET https://tuanrl.tubus.example/r/san-jose-palmares`
+`GET https://rutaejemplo.tubus.example/r/alajuela-naranjo`
 
 The server resolves the company from the hostname and renders the page with the route name, stops, geometry, schedule, and a snapshot of currently active buses **already in the HTML**. The passenger sees their route before any JavaScript runs. The map and the live connection hydrate afterwards.
 
@@ -400,8 +400,8 @@ One application, one database, logical isolation. Every company-owned row carrie
 The incoming `Host` header identifies the company on every request:
 
 ```
-tuanrl.tubus.example   → platform subdomain, matched by slug
-rutas.tuanrl.com       → custom domain, exact match in company_domains
+rutaejemplo.tubus.example   → platform subdomain, matched by slug
+rutas.rutaejemplo.com       → custom domain, exact match in company_domains
 admin.tubus.example    → the platform admin surface (no tenant in the host)
 ```
 
@@ -438,12 +438,12 @@ A company can serve TuBus from its own hostname without a separate deployment, a
 
 ### Setup
 
-1. The company points its hostname at the TuBus server with an `A` or `CNAME` record — for example `rutas.tuanrl.com`.
+1. The company points its hostname at the TuBus server with an `A` or `CNAME` record — for example `rutas.rutaejemplo.com`.
 2. An administrator adds the hostname in **Settings → Domains**; it is stored in `company_domains` and marked verified once the DNS record resolves to the platform.
 3. On the first HTTPS request to that hostname, Caddy asks the backend whether the name is known:
 
 ```
-GET /api/v1/public/domains/allowed?domain=rutas.tuanrl.com  →  200 or 404
+GET /api/v1/public/domains/allowed?domain=rutas.rutaejemplo.com  →  200 or 404
 ```
 
 Only hostnames present and verified in `company_domains` get a `200`. Caddy then obtains a Let's Encrypt certificate on demand and serves the company's passenger surface. Nothing needs to be restarted, and no certificate is ever issued for a hostname the platform does not recognise.

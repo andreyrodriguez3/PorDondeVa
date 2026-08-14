@@ -44,7 +44,7 @@ function parseArgs(rawArgv: string[]): Args {
     reconnectAfter: map.has('reconnect-after') ? Number(map.get('reconnect-after')) : null,
     apiUrl: map.get('api-url') ?? process.env.PUBLIC_API_URL ?? 'http://localhost:8080',
     adminHost: map.get('admin-host') ?? process.env.ADMIN_HOST ?? 'admin.tubus.localhost',
-    companyCode: map.get('company') ?? 'tuanrl',
+    companyCode: map.get('company') ?? 'rutaejemplo',
     username: map.get('username') ?? 'driver24',
     password: map.get('password') ?? 'ChangeMe123!',
   };

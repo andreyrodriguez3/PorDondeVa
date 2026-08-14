@@ -66,8 +66,8 @@ The MVP does not do map matching, snapping, or ETA. Route geometry is a GeoJSON 
 
 ```
 admin.tubus.example          → admin dashboard (auth, cookies, CSRF)
-tuanrl.tubus.example         → passenger surface only
-rutas.tuanrl.com             → passenger surface only
+rutaejemplo.tubus.example         → passenger surface only
+rutas.rutaejemplo.com             → passenger surface only
 ```
 
 Reason: authentication cookies must never be set on a hostname the customer controls (DNS can be repointed), cookie scoping across wildcard + arbitrary custom domains is a security minefield, and CSRF/CORS become trivial with one origin. The spec does not state where the dashboard lives — this is a decision, flagged again in §2 as **A1**.
@@ -130,7 +130,7 @@ Custom domains (§4) need HTTPS without DNS automation. Caddy's `on_demand_tls` 
 A naïve implementation would emit one event per stored point. An offline flush of 200 queued points would then spam every subscribed passenger with 200 events and replay 20 minutes of history across their screen in a second. Instead, ingest writes the batch, and emits **at most one** `bus:update` carrying the resulting live state — and only if the live state actually advanced (D11). Emitting after commit, not inside the transaction, prevents broadcasting a position that then rolls back. The intervening points still land in `location_points` and appear in trip playback; they simply are not streamed.
 
 **D20 — Drivers authenticate with company code + username; web users authenticate with email.**
-§16 gives a driver a name, phone and status but **no email**, while D15 makes email the global login identifier. Bus drivers frequently have no work email, and minting synthetic addresses (`driver24@tuanrl.local`) is a smell that leaks into every screen. Resolution: `users.email` is nullable and globally unique when present; `users.username` is unique per company. The admin surface logs in with email; the driver app logs in with company code + username + password, where the company code is entered once at first launch (or scanned from a QR the company prints) and stored thereafter. This also gives the driver app its tenant context, which it otherwise lacks — the app talks to the platform host, so unlike a browser it has no company-bearing hostname. See **A19**.
+§16 gives a driver a name, phone and status but **no email**, while D15 makes email the global login identifier. Bus drivers frequently have no work email, and minting synthetic addresses (`driver24@rutaejemplo.local`) is a smell that leaks into every screen. Resolution: `users.email` is nullable and globally unique when present; `users.username` is unique per company. The admin surface logs in with email; the driver app logs in with company code + username + password, where the company code is entered once at first launch (or scanned from a QR the company prints) and stored thereafter. This also gives the driver app its tenant context, which it otherwise lacks — the app talks to the platform host, so unlike a browser it has no company-bearing hostname. See **A19**.
 
 ### 1.2 Decisions deliberately deferred (do not build)
 
@@ -475,7 +475,7 @@ GPS acquisition and network transport are fully independent: the location engine
 `tools/simulator` — a Node CLI that speaks the **same public API contract as Android** and therefore validates the real pipeline.
 
 ```bash
-pnpm simulate --route sanjose-palmares --bus "Bus 24" --speed 60 \
+pnpm simulate --route alajuela-naranjo --bus "Bus 24" --speed 60 \
               --interval 5 --drop-network-after 60 --reconnect-after 120
 ```
 
@@ -528,16 +528,16 @@ git clone … && cd tubus
 cp .env.example .env
 docker compose up -d          # postgres, api (watch), web (dev)
 pnpm db:migrate && pnpm db:seed
-pnpm simulate --route sanjose-palmares    # a bus starts moving
+pnpm simulate --route alajuela-naranjo    # a bus starts moving
 ```
 
 `docker-compose.yml` services: `postgres` (named volume, healthcheck), `api` (bind-mounted source, hot reload, port 8080), `web` (Next dev, port 3000). Caddy is **not** in the dev compose — it is only in the prod compose, keeping local startup fast.
 
-**Multi-tenant hosts locally.** `tuanrl.localhost:3000` and `admin.localhost:3000` resolve to 127.0.0.1 natively in Chrome, Edge, and Firefox. A documented `hosts`-file fallback is provided for other clients. Non-browser tooling can override the tenant with an `X-Tenant-Host` header, honored **only when `NODE_ENV !== 'production'`**.
+**Multi-tenant hosts locally.** `rutaejemplo.localhost:3000` and `admin.localhost:3000` resolve to 127.0.0.1 natively in Chrome, Edge, and Firefox. A documented `hosts`-file fallback is provided for other clients. Non-browser tooling can override the tenant with an `X-Tenant-Host` header, honored **only when `NODE_ENV !== 'production'`**.
 
 **Android against the local backend.** Physical device over USB: `adb reverse tcp:8080 tcp:8080`, then `API_BASE_URL=http://localhost:8080`. Emulator: `http://10.0.2.2:8080`. Cleartext HTTP is permitted by a `network_security_config.xml` scoped to `localhost`/`10.0.2.2` and applied **to the debug build only**.
 
-**Seed data** (`tools/seed`) creates: a platform SUPER_ADMIN, company _Tuan RL_ (`tuanrl.localhost`, company code `tuanrl`), a COMPANY_ADMIN, an OPERATOR, two drivers with usernames (D20), three buses, the route _San José → Palmares_ with two directional variants carrying real polyline geometry, five stops, and a weekday schedule — i.e. DoD steps 1–7 are satisfied by one command, so every subsequent test starts from a realistic state. Credentials are printed on completion and are development-only.
+**Seed data** (`apps/api/prisma/seed.ts`) creates two companies. _RutaEjemplo_ (`rutaejemplo.localhost`, company code `rutaejemplo`) is placeholder demo/test data — not a real operator — but its two routes are real corridors (stop names and order sourced from transitrun.com, geometry road-snapped via OSRM): _Alajuela ↔ Naranjo_ (47 stops) and _Grecia ↔ San José_ (42 stops), each with both directional variants and a weekday schedule, plus a COMPANY_ADMIN, an OPERATOR, two drivers (D20), and three buses. _Andrey_ (`andrey.localhost`, company code `andrey`) is a second company meant for testing on a real phone in the field: one driver, one bus, and a route with no meaningful preset geometry, since a driver's trip needs _some_ route+variant to start (schema constraint) but the admin trip-detail playback draws the traveled path from raw location history, not from route geometry — so what that placeholder geometry says doesn't matter. DoD steps 1–7 are satisfied by one command against either company, so every subsequent test starts from a realistic state. Credentials are printed on completion and are development-only.
 
 `.env.example` (§39) documents every variable with a comment: `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL`, `PLATFORM_DOMAIN`, `ADMIN_HOST`, `PUBLIC_API_URL`, `NEXT_PUBLIC_WS_URL`, `NEXT_PUBLIC_MAP_STYLE_URL`, `LOCATION_RETENTION_DAYS`, `TRIP_AUTO_END_MINUTES`, `LOG_LEVEL`, `RATE_LIMIT_*`. The API fails to boot with a clear message if a required variable is missing — no silent defaults for secrets.
 
