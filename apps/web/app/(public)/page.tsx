@@ -5,6 +5,12 @@ import { copy } from '@/lib/copy';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 
+// Belt-and-suspenders alongside the (public) layout's export: this page resolves its
+// content from the request's Host header and must never be served from a cached
+// build-time render (see the layout for why that's not just staleness but a
+// cross-tenant leak risk).
+export const dynamic = 'force-dynamic';
+
 function resolveHostname(): string {
   const h = headers();
   return (h.get('host') ?? '').split(':')[0]!;
