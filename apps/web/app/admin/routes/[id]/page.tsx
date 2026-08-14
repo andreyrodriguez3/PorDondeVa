@@ -16,6 +16,7 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { copy } from '@/lib/copy';
 
 const MapView = dynamic(() => import('@/components/map/MapView').then((m) => m.MapView), {
@@ -192,6 +193,10 @@ function VariantCard({
   const [departureTime, setDepartureTime] = useState('06:00');
   const [daysOfWeek, setDaysOfWeek] = useState('1,2,3,4,5');
   const [expanded, setExpanded] = useState(false);
+  const [stopToDetach, setStopToDetach] = useState<{ id: string; name: string } | null>(null);
+  const [scheduleToRemove, setScheduleToRemove] = useState<{ id: string; label: string } | null>(
+    null,
+  );
 
   async function load() {
     const [stopList, scheduleList] = await Promise.all([
@@ -221,9 +226,11 @@ function VariantCard({
     }
   }
 
-  async function handleDetachStop(stopId: string) {
+  async function handleDetachStop() {
+    if (!stopToDetach) return;
     try {
-      await adminFetch(`/variants/${variant.id}/stops/${stopId}`, { method: 'DELETE' });
+      await adminFetch(`/variants/${variant.id}/stops/${stopToDetach.id}`, { method: 'DELETE' });
+      setStopToDetach(null);
       await load();
     } catch (err) {
       toast.show(err instanceof Error ? err.message : 'No se pudo quitar la parada.', 'error');
@@ -243,9 +250,11 @@ function VariantCard({
     }
   }
 
-  async function handleRemoveSchedule(id: string) {
+  async function handleRemoveSchedule() {
+    if (!scheduleToRemove) return;
     try {
-      await adminFetch(`/schedules/${id}`, { method: 'DELETE' });
+      await adminFetch(`/schedules/${scheduleToRemove.id}`, { method: 'DELETE' });
+      setScheduleToRemove(null);
       await load();
     } catch (err) {
       toast.show(err instanceof Error ? err.message : 'No se pudo quitar el horario.', 'error');
@@ -287,7 +296,7 @@ function VariantCard({
                     </span>
                     <button
                       type="button"
-                      onClick={() => handleDetachStop(stop.id)}
+                      onClick={() => setStopToDetach({ id: stop.id, name: stop.name })}
                       className="text-caption text-ink-tertiary hover:text-danger"
                     >
                       Quitar
@@ -326,7 +335,12 @@ function VariantCard({
                     </span>
                     <button
                       type="button"
-                      onClick={() => handleRemoveSchedule(s.id)}
+                      onClick={() =>
+                        setScheduleToRemove({
+                          id: s.id,
+                          label: `${s.departureTime} — ${copy.daysOfWeek(s.daysOfWeek)}`,
+                        })
+                      }
                       className="text-caption text-ink-tertiary hover:text-danger"
                     >
                       Quitar
@@ -365,6 +379,25 @@ function VariantCard({
           Actualizar datos
         </button>
       ) : null}
+
+      <ConfirmDialog
+        open={stopToDetach !== null}
+        title="¿Quitar esta parada de la ruta?"
+        description={
+          stopToDetach ? `"${stopToDetach.name}" dejará de aparecer en esta variante.` : undefined
+        }
+        confirmLabel="Quitar"
+        onConfirm={handleDetachStop}
+        onCancel={() => setStopToDetach(null)}
+      />
+      <ConfirmDialog
+        open={scheduleToRemove !== null}
+        title="¿Quitar este horario?"
+        description={scheduleToRemove ? `"${scheduleToRemove.label}" se eliminará.` : undefined}
+        confirmLabel="Quitar"
+        onConfirm={handleRemoveSchedule}
+        onCancel={() => setScheduleToRemove(null)}
+      />
     </Card>
   );
 }

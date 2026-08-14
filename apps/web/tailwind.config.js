@@ -10,24 +10,29 @@ module.exports = {
           DEFAULT: 'var(--brand-color, #3d5afe)',
           fg: 'var(--brand-color-fg, #ffffff)',
         },
+        // Every value below is a CSS custom property (see app/globals.css) with a
+        // light-mode fallback, so it resolves correctly even before the stylesheet
+        // finishes loading. The variables themselves carry the light/dark swap — no
+        // `dark:` variant needed anywhere a component uses these tokens.
         ink: {
-          DEFAULT: '#0f1115',
-          secondary: '#565d6b',
-          tertiary: '#8991a0',
+          DEFAULT: 'var(--ink, #0f1115)',
+          secondary: 'var(--ink-secondary, #565d6b)',
+          tertiary: 'var(--ink-tertiary, #8991a0)',
         },
         surface: {
-          DEFAULT: '#ffffff',
-          secondary: '#f5f6f8',
-          tertiary: '#eceef2',
+          DEFAULT: 'var(--surface, #ffffff)',
+          secondary: 'var(--surface-secondary, #f5f6f8)',
+          tertiary: 'var(--surface-tertiary, #eceef2)',
         },
         line: {
-          DEFAULT: '#e4e6ea',
-          strong: '#d3d6dc',
+          DEFAULT: 'var(--line, #e4e6ea)',
+          strong: 'var(--line-strong, #d3d6dc)',
         },
-        live: { DEFAULT: '#1fb15c', bg: '#e7f8ee' },
-        stale: { DEFAULT: '#d98c14', bg: '#fdf3e1' },
-        offline: { DEFAULT: '#8991a0', bg: '#f0f1f3' },
-        danger: { DEFAULT: '#e0483e', bg: '#fdecea' },
+        live: { DEFAULT: 'var(--live, #1fb15c)', bg: 'var(--live-bg, #e7f8ee)' },
+        stale: { DEFAULT: 'var(--stale, #d98c14)', bg: 'var(--stale-bg, #fdf3e1)' },
+        offline: { DEFAULT: 'var(--offline, #8991a0)', bg: 'var(--offline-bg, #f0f1f3)' },
+        danger: { DEFAULT: 'var(--danger, #e0483e)', bg: 'var(--danger-bg, #fdecea)' },
+        scrim: 'var(--scrim, rgb(15 17 21 / 40%))',
       },
       fontFamily: {
         sans: [
