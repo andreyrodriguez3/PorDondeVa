@@ -108,6 +108,14 @@ export function MapView({
     });
     mapRef.current = map;
 
+    // MapLibre caches the container's size at creation and never re-measures it on
+    // its own. Without this, any layout change after load — the mobile browser's
+    // address bar hiding/showing on scroll, a device rotation, a sidebar toggling —
+    // leaves the map computing screen positions (including marker placement) against
+    // stale dimensions, throwing markers off to the side or below the visible canvas.
+    const resizeObserver = new ResizeObserver(() => map.resize());
+    resizeObserver.observe(containerRef.current);
+
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(
       new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }),
@@ -173,6 +181,7 @@ export function MapView({
 
     return () => {
       removed = true;
+      resizeObserver.disconnect();
       map.remove();
       // Bus markers are cached by tripId in markersRef so position updates don't
       // recreate them (that's what keeps movement smooth). But that cache is a ref —
