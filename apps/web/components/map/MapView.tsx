@@ -25,13 +25,23 @@ interface MapViewProps {
 const FALLBACK_CENTER: [number, number] = [-84.0833, 9.9333]; // San José, Costa Rica
 
 /**
- * A bus marker's DOM element transitions its own transform on every position update
- * (D13 in ROADMAP.md — animate between two known fixes, never extrapolate past the
- * last one). The transition duration matches the observed update interval so movement
- * reads as continuous instead of a jump every few seconds, without inventing a
- * position the GPS never reported.
+ * A bus marker animates between two known fixes rather than jumping (D13 in
+ * ROADMAP.md), over roughly this long — but never by a CSS `transition` on
+ * `transform`. MapLibre repositions a Marker's root element by writing to that exact
+ * same `transform` property on every pan/zoom/rotate, completely independent of
+ * `setLngLat()`; a CSS transition on it can't tell "new GPS fix" apart from "the map
+ * moved under an unchanged position," so it animated *both* — the marker visibly
+ * lagged behind the map on every pan or zoom instead of staying pinned to its
+ * coordinate. Interpolation below is done by hand with rAF calling `setLngLat` every
+ * frame, which is instantaneous from MapLibre's point of view and therefore immune to
+ * this — panning/zooming always reflects the true current interpolated position with
+ * no lag, and nothing here is extrapolated past the last fix actually received.
  */
-const MARKER_TRANSITION_MS = 4000;
+const MARKER_ANIMATION_MS = 4000;
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
 
 function createStopElement(name: string, sequence: number): HTMLDivElement {
   const el = document.createElement('div');
@@ -43,12 +53,7 @@ function createStopElement(name: string, sequence: number): HTMLDivElement {
 }
 
 function createBusElement(label: string): HTMLDivElement {
-  // MapLibre positions this root element itself via `style.transform` (a translate);
-  // the transition below smooths *that* between fixes, exactly like the plain version
-  // did. Anything we animate ourselves (the focus scale) has to live on a child, or
-  // we'd stomp on MapLibre's own positioning transform.
   const el = document.createElement('div');
-  el.style.transition = `transform ${MARKER_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
 
   const wrapper = document.createElement('div');
   wrapper.className = 'tubus-marker-wrapper relative flex items-center justify-center';
@@ -86,6 +91,7 @@ export function MapView({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map>();
   const markersRef = useRef(new Map<string, maplibregl.Marker>());
+  const animsRef = useRef(new Map<string, number>()); // tripId -> requestAnimationFrame id
   const fitToBusesRef = useRef(!geometry);
 
   useEffect(() => {
@@ -168,6 +174,17 @@ export function MapView({
     return () => {
       removed = true;
       map.remove();
+      // Bus markers are cached by tripId in markersRef so position updates don't
+      // recreate them (that's what keeps movement smooth). But that cache is a ref —
+      // it outlives this effect. Without clearing it here, a marker created against
+      // this map instance becomes orphaned the moment the instance is torn down (its
+      // DOM node goes with it) and the next effect run sees a "marker" that already
+      // exists for that tripId, skips re-adding it to the new map, and the bus
+      // silently vanishes. This bit React 18 StrictMode's dev-only double-invoke of
+      // this effect especially hard: mount → add marker → cleanup → remount, gone.
+      markersRef.current.clear();
+      for (const rafId of animsRef.current.values()) cancelAnimationFrame(rafId);
+      animsRef.current.clear();
     };
     // Re-created whenever `geometry` changes (e.g. the passenger page's direction
     // switcher swaps in a different variant's LineString) — otherwise only once,
@@ -195,6 +212,9 @@ export function MapView({
       if (!seenTripIds.has(tripId)) {
         marker.remove();
         markersRef.current.delete(tripId);
+        const rafId = animsRef.current.get(tripId);
+        if (rafId !== undefined) cancelAnimationFrame(rafId);
+        animsRef.current.delete(tripId);
       }
     }
 
@@ -210,6 +230,30 @@ export function MapView({
           .setLngLat([bus.lng, bus.lat])
           .addTo(map);
         markersRef.current.set(bus.tripId, marker);
+      } else {
+        // Animate from wherever the marker is *currently drawn* (mid-flight or not)
+        // to the new fix by hand-rolling the interpolation via setLngLat every frame,
+        // instead of a CSS transition — see the MARKER_ANIMATION_MS comment above for
+        // why a CSS transition on transform fights MapLibre's own pan/zoom repositioning.
+        const activeMarker = marker;
+        const from = activeMarker.getLngLat();
+        const to = { lng: bus.lng, lat: bus.lat };
+        const prevRaf = animsRef.current.get(bus.tripId);
+        if (prevRaf !== undefined) cancelAnimationFrame(prevRaf);
+
+        if (from.lng !== to.lng || from.lat !== to.lat) {
+          const startedAt = performance.now();
+          const step = (now: number) => {
+            const t = Math.min(1, (now - startedAt) / MARKER_ANIMATION_MS);
+            activeMarker.setLngLat([lerp(from.lng, to.lng, t), lerp(from.lat, to.lat, t)]);
+            if (t < 1) {
+              animsRef.current.set(bus.tripId, requestAnimationFrame(step));
+            } else {
+              animsRef.current.delete(bus.tripId);
+            }
+          };
+          animsRef.current.set(bus.tripId, requestAnimationFrame(step));
+        }
       }
       const el = marker.getElement();
       el.style.setProperty('--tubus-marker-color', stateColor[bus.state]);
@@ -219,7 +263,6 @@ export function MapView({
       }
       const ring = el.querySelector<HTMLElement>('.tubus-marker-ring');
       if (ring) ring.classList.toggle('animate-pulse-ring', bus.state === 'LIVE');
-      marker.setLngLat([bus.lng, bus.lat]);
     }
   }, [buses, focusTripId, onSelectBus]);
 
