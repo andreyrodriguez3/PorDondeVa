@@ -12,9 +12,17 @@ import { stateColor } from '@/lib/liveStatus';
 const MAP_STYLE_URL =
   process.env.NEXT_PUBLIC_MAP_STYLE_URL ?? 'https://tiles.openfreemap.org/styles/liberty';
 
+type RouteGeometry =
+  | { type: 'LineString'; coordinates: [number, number][] }
+  // Trip playback (admin/trips/[id]) splits a recorded track into disconnected
+  // segments wherever there's a large time/distance gap between fixes, rather than
+  // drawing one continuous line through a reconnect or GPS dropout — see
+  // buildPlaybackGeometry in that page.
+  | { type: 'MultiLineString'; coordinates: [number, number][][] };
+
 interface MapViewProps {
   /** Omit for a fleet-wide view with no single route to draw (e.g. admin "live"). */
-  geometry?: { type: 'LineString'; coordinates: [number, number][] };
+  geometry?: RouteGeometry;
   stops?: PublicStop[];
   buses: PublicBusUpdate[];
   className?: string;
@@ -23,6 +31,14 @@ interface MapViewProps {
 }
 
 const FALLBACK_CENTER: [number, number] = [-84.0833, 9.9333]; // San José, Costa Rica
+
+function firstPosition(geometry: RouteGeometry): [number, number] {
+  return geometry.type === 'LineString' ? geometry.coordinates[0]! : geometry.coordinates[0]![0]!;
+}
+
+function allPositions(geometry: RouteGeometry): [number, number][] {
+  return geometry.type === 'LineString' ? geometry.coordinates : geometry.coordinates.flat();
+}
 
 /**
  * A bus marker animates between two known fixes rather than jumping (D13 in
@@ -115,7 +131,7 @@ export function MapView({
     if (!containerRef.current) return;
 
     let removed = false;
-    const [firstLng, firstLat] = geometry?.coordinates[0] ?? FALLBACK_CENTER;
+    const [firstLng, firstLat] = geometry ? firstPosition(geometry) : FALLBACK_CENTER;
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: MAP_STYLE_URL,
@@ -175,9 +191,10 @@ export function MapView({
         },
       });
 
-      const bounds = geometry.coordinates.reduce(
-        (b, coord) => b.extend(coord as [number, number]),
-        new maplibregl.LngLatBounds(geometry.coordinates[0], geometry.coordinates[0]),
+      const positions = allPositions(geometry);
+      const bounds = positions.reduce(
+        (b, coord) => b.extend(coord),
+        new maplibregl.LngLatBounds(positions[0]!, positions[0]!),
       );
       map.fitBounds(bounds, { padding: 56, duration: 0 });
 
