@@ -7,7 +7,9 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { startTripRequestSchema, type StartTripRequest } from '@tubus/contracts';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -27,8 +29,13 @@ export class DriverController {
   }
 
   @Get('trips/active')
-  active(@CurrentUser() user: JwtPayload) {
-    return this.trips.findActiveForDriver(requireCompanyId(user), user.sub);
+  async active(
+    @CurrentUser() user: JwtPayload,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const trip = await this.trips.findActiveForDriver(requireCompanyId(user), user.sub);
+    if (!trip) res.status(HttpStatus.NO_CONTENT);
+    return trip;
   }
 
   @Post('trips')
