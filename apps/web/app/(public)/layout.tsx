@@ -3,6 +3,12 @@ import { notFound } from 'next/navigation';
 import { getCompany } from '@/lib/api';
 import { copy } from '@/lib/copy';
 
+// This tree's content is entirely a function of the request's Host header (which
+// company it resolves to), so it can never be safely served from Next's static/route
+// cache — a build-time render (or one cached from an earlier request) would leak one
+// tenant's page to every other tenant's domain. Force per-request rendering.
+export const dynamic = 'force-dynamic';
+
 function resolveHostname(): string {
   const h = headers();
   return (h.get('host') ?? '').split(':')[0]!;
