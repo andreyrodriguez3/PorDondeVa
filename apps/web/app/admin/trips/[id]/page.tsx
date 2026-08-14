@@ -33,6 +33,51 @@ const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: 'Programado',
 };
 
+// A gap between two consecutive fixes this long, or a jump implying a speed this
+// high, means the device dropped off and reconnected (backgrounding, a relaunch, a
+// dead trip resumed from scratch) rather than genuinely continuing — draw it as a
+// break in the path instead of a straight chord across the gap. Without this, one
+// long-lived trip that restarts partway through renders as a spurious wedge fanning
+// out from the restart point instead of a track that traces the road.
+const MAX_GAP_MS = 2 * 60 * 1000; // 2 minutes
+const MAX_IMPLIED_SPEED_MPS = 55; // ~200 km/h — generous for a bus, still catches teleports
+
+function haversineMeters(a: LocationHistoryPoint, b: LocationHistoryPoint): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const earthRadiusM = 6_371_000;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLng = toRad(b.longitude - a.longitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.latitude)) * Math.cos(toRad(b.latitude)) * Math.sin(dLng / 2) ** 2;
+  return 2 * earthRadiusM * Math.asin(Math.sqrt(h));
+}
+
+function buildPlaybackGeometry(history: LocationHistoryPoint[]) {
+  const segments: [number, number][][] = [];
+  let current: [number, number][] = [];
+
+  for (let i = 0; i < history.length; i++) {
+    const point = history[i]!;
+    const prev = history[i - 1];
+    if (prev) {
+      const gapMs =
+        new Date(point.deviceTimestamp).getTime() - new Date(prev.deviceTimestamp).getTime();
+      const impliedSpeedMps = haversineMeters(prev, point) / (gapMs / 1000);
+      if (gapMs > MAX_GAP_MS || impliedSpeedMps > MAX_IMPLIED_SPEED_MPS) {
+        if (current.length >= 2) segments.push(current);
+        current = [];
+      }
+    }
+    current.push([point.longitude, point.latitude]);
+  }
+  if (current.length >= 2) segments.push(current);
+
+  if (segments.length === 0) return null;
+  if (segments.length === 1) return { type: 'LineString' as const, coordinates: segments[0]! };
+  return { type: 'MultiLineString' as const, coordinates: segments };
+}
+
 export default function TripDetailPage({ params }: { params: { id: string } }) {
   return (
     <AdminShell>
@@ -67,13 +112,7 @@ function TripDetailContent({ tripId }: { tripId: string }) {
     load();
   }, [tripId]);
 
-  const geometry = useMemo(() => {
-    if (history.length < 2) return null;
-    return {
-      type: 'LineString' as const,
-      coordinates: history.map((p) => [p.longitude, p.latitude] as [number, number]),
-    };
-  }, [history]);
+  const geometry = useMemo(() => buildPlaybackGeometry(history), [history]);
 
   const markers = useMemo(() => {
     if (history.length === 0) return [];
