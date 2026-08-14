@@ -136,6 +136,8 @@ model User {
   role               UserRole
   status             UserStatus @default(ACTIVE)
   lastLoginAt        DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until") @db.Timestamptz(3)
   createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
