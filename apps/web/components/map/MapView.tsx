@@ -26,16 +26,27 @@ const FALLBACK_CENTER: [number, number] = [-84.0833, 9.9333]; // San José, Cost
 
 /**
  * A bus marker animates between two known fixes rather than jumping (D13 in
- * ROADMAP.md), over roughly this long — but never by a CSS `transition` on
- * `transform`. MapLibre repositions a Marker's root element by writing to that exact
- * same `transform` property on every pan/zoom/rotate, completely independent of
- * `setLngLat()`; a CSS transition on it can't tell "new GPS fix" apart from "the map
- * moved under an unchanged position," so it animated *both* — the marker visibly
- * lagged behind the map on every pan or zoom instead of staying pinned to its
- * coordinate. Interpolation below is done by hand with rAF calling `setLngLat` every
- * frame, which is instantaneous from MapLibre's point of view and therefore immune to
- * this — panning/zooming always reflects the true current interpolated position with
- * no lag, and nothing here is extrapolated past the last fix actually received.
+ * ROADMAP.md), over roughly this long. Two earlier approaches both fought MapLibre:
+ *
+ * 1. A CSS `transition` on the marker root's `transform` — MapLibre repositions a
+ *    Marker's root element by writing that exact same `transform` property on every
+ *    pan/zoom/rotate, so the transition couldn't tell "new GPS fix" from "the map
+ *    moved under an unchanged position" and animated both, lagging behind the map.
+ * 2. Calling `setLngLat()` every rAF frame to interpolate — this is synchronous with
+ *    MapLibre from a single-writer perspective, but it means `_update()` (and its
+ *    `map.project()` call) fires up to 60x/sec for the *entire* animation window,
+ *    racing MapLibre's own continuous 'move'/'moveend'-driven repositioning during a
+ *    real touch pan/zoom gesture. Stable under a slow mouse-wheel/drag test; flaky
+ *    under a real multi-touch pinch stream on a mid-range Android device, where the
+ *    two writers land in different orders relative to the camera matrix update.
+ *
+ * The animation below never calls into Marker internals mid-flight. `setLngLat` is
+ * called exactly once per real GPS fix, so MapLibre's own pan/zoom system is the sole
+ * owner of the marker's true screen position (always correct, never racy). The visual
+ * "glide" is a pixel-space offset applied via the standalone CSS `translate` property
+ * on the *inner* wrapper element — a property MapLibre never touches (it only ever
+ * writes `transform` on the marker root) — animated by hand with rAF. Nothing here is
+ * extrapolated past the last fix actually received.
  */
 const MARKER_ANIMATION_MS = 4000;
 
@@ -57,7 +68,12 @@ function createBusElement(label: string): HTMLDivElement {
 
   const wrapper = document.createElement('div');
   wrapper.className = 'tubus-marker-wrapper relative flex items-center justify-center';
-  wrapper.style.transition = 'transform 200ms cubic-bezier(0.34, 1.4, 0.64, 1)';
+  // `scale` and `translate` are independent CSS properties from `transform` (not
+  // shorthand for it) — the focus-zoom scale below can transition on its own without
+  // fighting the per-frame `translate` writes the glide animation does to this same
+  // element, and without ever touching `transform`, which MapLibre owns exclusively.
+  wrapper.style.transition = 'scale 200ms cubic-bezier(0.34, 1.4, 0.64, 1)';
+  wrapper.style.translate = '0px 0px';
 
   const ring = document.createElement('span');
   ring.className = 'tubus-marker-ring absolute h-8 w-8 rounded-full';
@@ -92,6 +108,7 @@ export function MapView({
   const mapRef = useRef<maplibregl.Map>();
   const markersRef = useRef(new Map<string, maplibregl.Marker>());
   const animsRef = useRef(new Map<string, number>()); // tripId -> requestAnimationFrame id
+  const offsetsRef = useRef(new Map<string, { x: number; y: number }>()); // tripId -> in-flight glide offset (px)
   const fitToBusesRef = useRef(!geometry);
 
   useEffect(() => {
@@ -194,6 +211,7 @@ export function MapView({
       markersRef.current.clear();
       for (const rafId of animsRef.current.values()) cancelAnimationFrame(rafId);
       animsRef.current.clear();
+      offsetsRef.current.clear();
     };
     // Re-created whenever `geometry` changes (e.g. the passenger page's direction
     // switcher swaps in a different variant's LineString) — otherwise only once,
@@ -224,6 +242,7 @@ export function MapView({
         const rafId = animsRef.current.get(tripId);
         if (rafId !== undefined) cancelAnimationFrame(rafId);
         animsRef.current.delete(tripId);
+        offsetsRef.current.delete(tripId);
       }
     }
 
@@ -240,10 +259,10 @@ export function MapView({
           .addTo(map);
         markersRef.current.set(bus.tripId, marker);
       } else {
-        // Animate from wherever the marker is *currently drawn* (mid-flight or not)
-        // to the new fix by hand-rolling the interpolation via setLngLat every frame,
-        // instead of a CSS transition — see the MARKER_ANIMATION_MS comment above for
-        // why a CSS transition on transform fights MapLibre's own pan/zoom repositioning.
+        // Snap the marker's true position to the new fix immediately — MapLibre's own
+        // pan/zoom system now owns positioning exclusively, see the
+        // MARKER_ANIMATION_MS comment above. The visual glide is a pixel offset
+        // applied to the wrapper below, computed once here (not per animation frame).
         const activeMarker = marker;
         const from = activeMarker.getLngLat();
         const to = { lng: bus.lng, lat: bus.lat };
@@ -251,14 +270,34 @@ export function MapView({
         if (prevRaf !== undefined) cancelAnimationFrame(prevRaf);
 
         if (from.lng !== to.lng || from.lat !== to.lat) {
+          const prevOffset = offsetsRef.current.get(bus.tripId) ?? { x: 0, y: 0 };
+          const fromPx = map.project(from);
+          const toPx = map.project(to);
+          activeMarker.setLngLat([to.lng, to.lat]);
+
+          // Where the marker was actually drawn a moment ago (its old anchor plus
+          // whatever glide offset was still in flight), expressed relative to the new
+          // anchor — that's the offset to start this animation from so there's no
+          // visual jump at the handoff.
+          const startOffset = {
+            x: fromPx.x + prevOffset.x - toPx.x,
+            y: fromPx.y + prevOffset.y - toPx.y,
+          };
+          const wrapperEl = activeMarker.getElement().querySelector<HTMLElement>(
+            '.tubus-marker-wrapper',
+          );
+
           const startedAt = performance.now();
           const step = (now: number) => {
             const t = Math.min(1, (now - startedAt) / MARKER_ANIMATION_MS);
-            activeMarker.setLngLat([lerp(from.lng, to.lng, t), lerp(from.lat, to.lat, t)]);
+            const offset = { x: lerp(startOffset.x, 0, t), y: lerp(startOffset.y, 0, t) };
+            offsetsRef.current.set(bus.tripId, offset);
+            if (wrapperEl) wrapperEl.style.translate = `${offset.x}px ${offset.y}px`;
             if (t < 1) {
               animsRef.current.set(bus.tripId, requestAnimationFrame(step));
             } else {
               animsRef.current.delete(bus.tripId);
+              offsetsRef.current.delete(bus.tripId);
             }
           };
           animsRef.current.set(bus.tripId, requestAnimationFrame(step));
@@ -268,7 +307,7 @@ export function MapView({
       el.style.setProperty('--tubus-marker-color', stateColor[bus.state]);
       const wrapper = el.querySelector<HTMLElement>('.tubus-marker-wrapper');
       if (wrapper) {
-        wrapper.style.transform = bus.tripId === focusTripId ? 'scale(1.18)' : 'scale(1)';
+        wrapper.style.scale = bus.tripId === focusTripId ? '1.18' : '1';
       }
       const ring = el.querySelector<HTMLElement>('.tubus-marker-ring');
       if (ring) ring.classList.toggle('animate-pulse-ring', bus.state === 'LIVE');
