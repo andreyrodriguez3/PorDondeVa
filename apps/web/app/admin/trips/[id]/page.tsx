@@ -93,6 +93,8 @@ function TripDetailContent({ tripId }: { tripId: string }) {
   const [loading, setLoading] = useState(true);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [ending, setEnding] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -150,6 +152,20 @@ function TripDetailContent({ tripId }: { tripId: string }) {
     }
   }
 
+  async function handleCancelTrip() {
+    setCancelling(true);
+    try {
+      await adminFetch(`/trips/${tripId}/cancel`, { method: 'POST' });
+      toast.show('Viaje cancelado', 'success');
+      setConfirmCancel(false);
+      await load();
+    } catch (err) {
+      toast.show(err instanceof Error ? err.message : 'No se pudo cancelar el viaje.', 'error');
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   if (loading || !trip) {
     return (
       <div>
@@ -183,9 +199,14 @@ function TripDetailContent({ tripId }: { tripId: string }) {
           </p>
         </div>
         {trip.status === 'ACTIVE' ? (
-          <Button variant="danger" onClick={() => setConfirmEnd(true)}>
-            Finalizar viaje
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setConfirmCancel(true)}>
+              Cancelar viaje
+            </Button>
+            <Button variant="danger" onClick={() => setConfirmEnd(true)}>
+              Finalizar viaje
+            </Button>
+          </div>
         ) : null}
       </div>
 
@@ -214,6 +235,14 @@ function TripDetailContent({ tripId }: { tripId: string }) {
         />
       )}
 
+      <ConfirmDialog
+        open={confirmCancel}
+        title="¿Cancelar este viaje?"
+        description="Solo funciona si todavía no tiene puntos GPS registrados — si el bus ya se movió, usá &quot;Finalizar viaje&quot; en su lugar."
+        confirmLabel={cancelling ? 'Cancelando…' : 'Cancelar viaje'}
+        onConfirm={handleCancelTrip}
+        onCancel={() => setConfirmCancel(false)}
+      />
       <ConfirmDialog
         open={confirmEnd}
         title="¿Finalizar este viaje?"

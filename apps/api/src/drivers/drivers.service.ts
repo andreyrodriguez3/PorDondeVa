@@ -3,6 +3,7 @@ import * as argon2 from 'argon2';
 import { Prisma } from '@prisma/client';
 import type { CreateDriverRequest, DriverResponse, UpdateDriverRequest } from '@tubus/contracts';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { ARGON2_OPTIONS } from '../auth/auth.service';
 
 type DriverRecord = {
   userId: string;
@@ -36,7 +37,7 @@ export class DriversService {
   }
 
   async create(companyId: string, dto: CreateDriverRequest): Promise<DriverResponse> {
-    const passwordHash = await argon2.hash(dto.password, { type: argon2.argon2id });
+    const passwordHash = await argon2.hash(dto.password, ARGON2_OPTIONS);
 
     try {
       const user = await this.prisma.user.create({
@@ -85,6 +86,16 @@ export class DriversService {
       include: { user: { select: { name: true, username: true } } },
     });
     return toResponse(driver);
+  }
+
+  async resetPassword(companyId: string, userId: string, newPassword: string): Promise<void> {
+    await this.findOne(companyId, userId);
+
+    const passwordHash = await argon2.hash(newPassword, ARGON2_OPTIONS);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash, mustChangePassword: true },
+    });
   }
 }
 
