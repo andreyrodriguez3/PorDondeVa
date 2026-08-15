@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { copy } from '@/lib/copy';
+import { springOrFade } from '@/lib/motionPresets';
 
 function ShareIcon() {
   return (
@@ -20,6 +21,7 @@ function ShareIcon() {
 
 export function ShareButton({ routeName }: { routeName: string }) {
   const [copied, setCopied] = useState(false);
+  const reduced = useReducedMotion();
 
   async function handleShare() {
     const url = window.location.href;
@@ -49,11 +51,16 @@ export function ShareButton({ routeName }: { routeName: string }) {
       <AnimatePresence>
         {copied ? (
           <motion.span
-            initial={{ opacity: 0, y: 4, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 4, scale: 0.9 }}
-            transition={{ type: 'spring', bounce: 0, duration: 0.25 }}
-            className="absolute right-0 top-full mt-1.5 whitespace-nowrap rounded-md bg-ink px-2.5 py-1 text-micro font-medium text-white shadow-elevate-2"
+            {...springOrFade(Boolean(reduced), {
+              initial: { opacity: 0, y: 4, scale: 0.9 },
+              animate: { opacity: 1, y: 0, scale: 1 },
+              exit: { opacity: 0, y: 4, scale: 0.9 },
+              transition: { type: 'spring', bounce: 0, duration: 0.25 },
+            })}
+            // Fixed dark chip regardless of theme (a tooltip reads as "inverse" surface
+            // in both light and dark mode) — not `bg-ink`, which would go near-white
+            // in dark mode and make this text illegible against itself.
+            className="absolute right-0 top-full mt-1.5 whitespace-nowrap rounded-md bg-[#14171f] px-2.5 py-1 text-micro font-medium text-white shadow-elevate-2"
           >
             {copy.shareCopied}
           </motion.span>

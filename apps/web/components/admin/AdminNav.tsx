@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { clearSession, getCurrentUser } from '@/lib/adminAuth';
+import { ThemeToggle } from '../ui/ThemeToggle';
 import {
   BusIcon,
   DriverIcon,
@@ -34,13 +35,24 @@ const ROLE_LABEL: Record<string, string> = {
   DRIVER: 'Conductor',
 };
 
-export function AdminNav() {
+interface AdminNavProps {
+  /** Off-canvas drawer state below `lg` — ignored (nav is always visible) at `lg` and up. */
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
+}
+
+export function AdminNav({ mobileOpen = false, onCloseMobile }: AdminNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const user = getCurrentUser();
+  const reduced = useReducedMotion();
 
   return (
-    <nav className="flex w-56 shrink-0 flex-col border-r border-line bg-surface px-3 py-4">
+    <nav
+      className={`fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col border-r border-line bg-surface px-3 py-4 transition-transform duration-200 ease-out lg:static lg:z-auto lg:w-56 lg:translate-x-0 lg:transition-none ${
+        mobileOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
+    >
       <div className="mb-5 flex items-center gap-2 px-2">
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand text-callout font-bold text-brand-fg">
           T
@@ -56,6 +68,7 @@ export function AdminNav() {
             <Link
               key={link.href}
               href={link.href}
+              onClick={onCloseMobile}
               className={`relative flex items-center gap-2.5 rounded-md px-3 py-2 text-callout font-medium transition-colors duration-150 ${
                 active ? 'text-brand' : 'text-ink-secondary hover:text-ink'
               }`}
@@ -64,7 +77,7 @@ export function AdminNav() {
                 <motion.span
                   layoutId="admin-nav-active"
                   className="absolute inset-0 rounded-md bg-brand/10"
-                  transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
+                  transition={reduced ? { duration: 0 } : { type: 'spring', bounce: 0, duration: 0.35 }}
                 />
               ) : null}
               <span className="relative z-10">
@@ -78,11 +91,18 @@ export function AdminNav() {
 
       <div className="mt-auto flex flex-col gap-2 border-t border-line pt-3">
         {user ? (
-          <div className="px-2">
-            <p className="truncate text-callout font-medium text-ink">{user.name}</p>
-            <p className="text-caption text-ink-tertiary">{ROLE_LABEL[user.role] ?? user.role}</p>
+          <div className="flex items-center justify-between gap-2 px-2">
+            <div className="min-w-0">
+              <p className="truncate text-callout font-medium text-ink">{user.name}</p>
+              <p className="text-caption text-ink-tertiary">{ROLE_LABEL[user.role] ?? user.role}</p>
+            </div>
+            <ThemeToggle />
           </div>
-        ) : null}
+        ) : (
+          <div className="flex justify-end px-2">
+            <ThemeToggle />
+          </div>
+        )}
         <button
           type="button"
           onClick={() => {
