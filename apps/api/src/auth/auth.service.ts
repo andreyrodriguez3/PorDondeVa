@@ -4,6 +4,20 @@ import type { AuthenticatedUser, LoginResponse } from '@tubus/contracts';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { TokenService } from './token.service';
 
+// Per-account lockout, layered on top of the IP-based throttle on the login endpoints —
+// the throttle alone doesn't stop a slow, distributed attempt against one account.
+const MAX_FAILED_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
+
+// OWASP-recommended argon2id parameters (19 MiB memory, 2 iterations, 1 thread) — the
+// argon2 default omits these, which resolves to a much weaker legacy preset.
+export const ARGON2_OPTIONS = {
+  type: argon2.argon2id,
+  memoryCost: 19456,
+  timeCost: 2,
+  parallelism: 1,
+} as const;
+
 /**
  * D15/D20 — web users log in with a globally unique email; drivers (who often have no
  * work email) log in with company code + username. Both paths converge on the same user
@@ -87,7 +101,7 @@ export class AuthService {
     const valid = await argon2.verify(user.passwordHash, currentPassword);
     if (!valid) throw new UnauthorizedException('Current password is incorrect.');
 
-    const passwordHash = await argon2.hash(newPassword, { type: argon2.argon2id });
+    const passwordHash = await argon2.hash(newPassword, ARGON2_OPTIONS);
     await this.prisma.user.update({
       where: { id: userId },
       data: { passwordHash, mustChangePassword: false },
@@ -95,19 +109,44 @@ export class AuthService {
   }
 
   private async completeLogin(
-    user: { id: string; passwordHash: string; status: string } | null,
+    user: {
+      id: string;
+      passwordHash: string;
+      status: string;
+      failedLoginAttempts: number;
+      lockedUntil: Date | null;
+    } | null,
     password: string,
   ): Promise<LoginResponse> {
     if (!user) throw new UnauthorizedException('Invalid credentials.');
 
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      throw new UnauthorizedException(
+        'Too many failed attempts. Try again in a few minutes.',
+      );
+    }
+
     const valid = await argon2.verify(user.passwordHash, password);
-    if (!valid) throw new UnauthorizedException('Invalid credentials.');
+    if (!valid) {
+      const attempts = user.failedLoginAttempts + 1;
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failedLoginAttempts: attempts,
+          lockedUntil:
+            attempts >= MAX_FAILED_LOGIN_ATTEMPTS
+              ? new Date(Date.now() + LOCKOUT_DURATION_MS)
+              : null,
+        },
+      });
+      throw new UnauthorizedException('Invalid credentials.');
+    }
 
     if (user.status !== 'ACTIVE') throw new UnauthorizedException('Account is disabled.');
 
     const full = await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: { lastLoginAt: new Date(), failedLoginAttempts: 0, lockedUntil: null },
     });
 
     return this.issueSession(full);

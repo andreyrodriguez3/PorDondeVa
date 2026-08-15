@@ -1,8 +1,20 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import {
   createDriverRequestSchema,
+  resetDriverPasswordRequestSchema,
   updateDriverRequestSchema,
   type CreateDriverRequest,
+  type ResetDriverPasswordRequest,
   type UpdateDriverRequest,
 } from '@tubus/contracts';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -45,5 +57,19 @@ export class DriversController {
     @Body(new ZodValidationPipe(updateDriverRequestSchema)) body: UpdateDriverRequest,
   ) {
     return this.drivers.update(requireCompanyId(user), id, body);
+  }
+
+  // A21 — admin-issued reset, no email needed: the driver never proves they know the
+  // old password (they may have forgotten it, which is the whole point), only the
+  // COMPANY_ADMIN resetting it needs to be authenticated and own this driver.
+  @Roles('COMPANY_ADMIN')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Patch(':id/password')
+  resetPassword(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(resetDriverPasswordRequestSchema)) body: ResetDriverPasswordRequest,
+  ) {
+    return this.drivers.resetPassword(requireCompanyId(user), id, body.password);
   }
 }
