@@ -27,7 +27,7 @@ export class StopsService {
 
   async update(companyId: string, id: string, dto: UpdateStopRequest): Promise<StopResponse> {
     await this.findOne(companyId, id);
-    const stop = await this.prisma.stop.update({ where: { id }, data: dto });
+    const stop = await this.prisma.scoped.stop.update({ where: { id, companyId }, data: dto });
     return toResponse(stop);
   }
 
@@ -46,8 +46,8 @@ export class StopsService {
     const stop = await this.prisma.scoped.stop.findFirst({ where: { companyId, id: stopId } });
     if (!stop) throw new NotFoundException('Stop not found in this company.');
 
-    const maxSequence = await this.prisma.routeVariantStop.aggregate({
-      where: { routeVariantId: variantId },
+    const maxSequence = await this.prisma.scoped.routeVariantStop.aggregate({
+      where: { companyId, routeVariantId: variantId },
       _max: { sequence: true },
     });
 
@@ -63,8 +63,8 @@ export class StopsService {
 
   async detach(companyId: string, variantId: string, stopId: string): Promise<void> {
     await this.assertVariantOwnedByCompany(companyId, variantId);
-    await this.prisma.routeVariantStop.deleteMany({
-      where: { routeVariantId: variantId, stopId },
+    await this.prisma.scoped.routeVariantStop.deleteMany({
+      where: { companyId, routeVariantId: variantId, stopId },
     });
   }
 
@@ -75,8 +75,8 @@ export class StopsService {
   async reorder(companyId: string, variantId: string, stopIds: string[]): Promise<void> {
     await this.assertVariantOwnedByCompany(companyId, variantId);
 
-    const existing = await this.prisma.routeVariantStop.findMany({
-      where: { routeVariantId: variantId },
+    const existing = await this.prisma.scoped.routeVariantStop.findMany({
+      where: { companyId, routeVariantId: variantId },
     });
     const existingStopIds = new Set(existing.map((link) => link.stopId));
 
@@ -86,10 +86,10 @@ export class StopsService {
       );
     }
 
-    await this.prisma.$transaction(
+    await this.prisma.scoped.$transaction(
       stopIds.map((stopId, index) =>
-        this.prisma.routeVariantStop.updateMany({
-          where: { routeVariantId: variantId, stopId },
+        this.prisma.scoped.routeVariantStop.updateMany({
+          where: { companyId, routeVariantId: variantId, stopId },
           data: { sequence: index + 1 },
         }),
       ),

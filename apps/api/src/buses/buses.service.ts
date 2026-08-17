@@ -33,14 +33,12 @@ export class BusesService {
   }
 
   async update(companyId: string, id: string, dto: UpdateBusRequest): Promise<BusResponse> {
-    // Ownership is verified against companyId first; the update itself then targets the
-    // row by its own primary key. Bus has no (companyId, id) compound unique for the
-    // scoped client's update() to use, so this one call uses the raw client — the same
-    // documented exception as the auth module (D14's known limit on nested/nonstandard
-    // writes).
+    // Extended Where Unique lets `companyId` ride alongside the `id` primary key in a
+    // singular update() — Prisma still targets one row by id, but the guard also sees
+    // the tenant filter, so a bug elsewhere can't point this at another company's bus.
     await this.findOne(companyId, id);
     try {
-      const bus = await this.prisma.bus.update({ where: { id }, data: dto });
+      const bus = await this.prisma.scoped.bus.update({ where: { id, companyId }, data: dto });
       return toResponse(bus);
     } catch (error) {
       throw mapUniqueLabelConflict(error);
