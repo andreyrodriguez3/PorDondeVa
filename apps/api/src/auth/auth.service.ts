@@ -118,10 +118,14 @@ export class AuthService {
     } | null,
     password: string,
   ): Promise<LoginResponse> {
+    // A distinct message for the locked-out case would tell an unauthenticated caller
+    // that an account exists (and just failed several logins) versus not — every branch
+    // below returns the same generic message so probing a list of candidate emails
+    // can't be used to enumerate real accounts.
     if (!user) throw new UnauthorizedException('Invalid credentials.');
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
-      throw new UnauthorizedException('Too many failed attempts. Try again in a few minutes.');
+      throw new UnauthorizedException('Invalid credentials.');
     }
 
     const valid = await argon2.verify(user.passwordHash, password);
