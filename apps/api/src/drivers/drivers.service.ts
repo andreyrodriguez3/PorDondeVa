@@ -40,7 +40,7 @@ export class DriversService {
     const passwordHash = await argon2.hash(dto.password, ARGON2_OPTIONS);
 
     try {
-      const user = await this.prisma.user.create({
+      const user = await this.prisma.scoped.user.create({
         data: {
           companyId,
           username: dto.username,
@@ -72,11 +72,14 @@ export class DriversService {
     await this.findOne(companyId, userId);
 
     if (dto.name) {
-      await this.prisma.user.update({ where: { id: userId }, data: { name: dto.name } });
+      await this.prisma.scoped.user.update({
+        where: { id: userId, companyId },
+        data: { name: dto.name },
+      });
     }
 
-    const driver = await this.prisma.driverProfile.update({
-      where: { userId },
+    const driver = await this.prisma.scoped.driverProfile.update({
+      where: { userId, companyId },
       data: {
         phone: dto.phone,
         licenseNumber: dto.licenseNumber,
@@ -92,8 +95,8 @@ export class DriversService {
     await this.findOne(companyId, userId);
 
     const passwordHash = await argon2.hash(newPassword, ARGON2_OPTIONS);
-    await this.prisma.user.update({
-      where: { id: userId },
+    await this.prisma.scoped.user.update({
+      where: { id: userId, companyId },
       data: { passwordHash, mustChangePassword: true },
     });
   }

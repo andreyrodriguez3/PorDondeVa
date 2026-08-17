@@ -44,8 +44,8 @@ export class SchedulesService {
     const existing = await this.prisma.scoped.schedule.findFirst({ where: { companyId, id } });
     if (!existing) throw new NotFoundException();
 
-    const schedule = await this.prisma.schedule.update({
-      where: { id },
+    const schedule = await this.prisma.scoped.schedule.update({
+      where: { id, companyId },
       data: {
         departureTime: dto.departureTime ? parseWallClockTime(dto.departureTime) : undefined,
         daysOfWeek: dto.daysOfWeek,
@@ -58,7 +58,7 @@ export class SchedulesService {
   async remove(companyId: string, id: string): Promise<void> {
     const existing = await this.prisma.scoped.schedule.findFirst({ where: { companyId, id } });
     if (!existing) throw new NotFoundException();
-    await this.prisma.schedule.delete({ where: { id } });
+    await this.prisma.scoped.schedule.delete({ where: { id, companyId } });
   }
 
   private async assertVariantOwnedByCompany(companyId: string, variantId: string): Promise<void> {
