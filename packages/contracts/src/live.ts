@@ -17,6 +17,10 @@ export const publicBusUpdateSchema = z.object({
   accuracyM: z.number().nullable(),
   deviceTimestamp: z.string().datetime(),
   state: busStateSchema,
+  // Next stop the bus hasn't reached yet, projected along the route line — null once
+  // it's passed every stop, or if the fix couldn't be matched onto the line at all.
+  nextStopId: z.string().uuid().nullable(),
+  etaSeconds: z.number().int().nonnegative().nullable(),
 });
 export type PublicBusUpdate = z.infer<typeof publicBusUpdateSchema>;
 

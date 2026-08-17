@@ -3,10 +3,12 @@ import type { LocationPoint, SubmitLocationsResponse } from '@tubus/contracts';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { LiveGateway } from '../live/live.gateway';
 import { computeLiveState } from '../common/live-status';
+import { computeNextStopEta } from '../common/route-eta';
 
 const FUTURE_TOLERANCE_MS = 60_000;
 const PRE_TRIP_TOLERANCE_MS = 5 * 60_000;
 const MAX_AGE_MS = 24 * 60 * 60_000;
+const ETA_SPEED_WINDOW = 4; // recent fixes averaged for a less jumpy ETA
 
 type PointResult = SubmitLocationsResponse['results'][number];
 
@@ -34,7 +36,16 @@ export class LocationsService {
       where: { companyId, id: tripId },
       include: {
         bus: { select: { label: true } },
-        variant: { select: { headsign: true } },
+        variant: {
+          select: {
+            headsign: true,
+            geometry: true,
+            stops: {
+              select: { stop: { select: { id: true, latitude: true, longitude: true } } },
+              orderBy: { sequence: 'asc' },
+            },
+          },
+        },
       },
     });
     if (!trip) throw new NotFoundException('Trip not found in this company.');
@@ -122,6 +133,23 @@ export class LocationsService {
     if (newestAccepted) {
       const p = newestAccepted as { timestamp: Date; point: LocationPoint };
       const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
+
+      const recentSpeeds = await this.prisma.scoped.locationPoint.findMany({
+        where: { companyId, tripId, speedMps: { not: null } },
+        orderBy: { deviceTimestamp: 'desc' },
+        take: ETA_SPEED_WINDOW,
+        select: { speedMps: true },
+      });
+
+      const geometry = trip.variant.geometry as unknown as { coordinates: [number, number][] };
+      const eta = computeNextStopEta(
+        geometry.coordinates,
+        trip.variant.stops.map((s) => s.stop),
+        p.point.lat,
+        p.point.lng,
+        recentSpeeds.map((r) => r.speedMps!),
+      );
+
       this.liveGateway.emitBusUpdate(companyId, trip.routeVariantId, {
         tripId,
         routeVariantId: trip.routeVariantId,
@@ -139,6 +167,8 @@ export class LocationsService {
           company.liveThresholdSeconds,
           company.staleThresholdSeconds,
         ),
+        nextStopId: eta?.nextStopId ?? null,
+        etaSeconds: eta?.etaSeconds ?? null,
       });
     }
 
