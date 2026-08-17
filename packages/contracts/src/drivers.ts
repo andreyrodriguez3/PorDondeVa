@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { passwordSchema } from './password';
 
 export const driverStatusSchema = z.enum(['ACTIVE', 'INACTIVE']);
 export type DriverStatus = z.infer<typeof driverStatusSchema>;
@@ -6,7 +7,7 @@ export type DriverStatus = z.infer<typeof driverStatusSchema>;
 export const createDriverRequestSchema = z.object({
   name: z.string().min(1),
   username: z.string().min(1),
-  password: z.string().min(8),
+  password: passwordSchema,
   phone: z.string().min(1).optional(),
   licenseNumber: z.string().min(1).optional(),
   defaultBusId: z.string().uuid().optional(),
@@ -21,6 +22,13 @@ export const updateDriverRequestSchema = z.object({
   status: driverStatusSchema.optional(),
 });
 export type UpdateDriverRequest = z.infer<typeof updateDriverRequestSchema>;
+
+// A21 — admin-issued reset: the driver never proves they know the old password, so
+// this stays as strict as driver creation itself, not looser.
+export const resetDriverPasswordRequestSchema = z.object({
+  password: passwordSchema,
+});
+export type ResetDriverPasswordRequest = z.infer<typeof resetDriverPasswordRequestSchema>;
 
 export const driverResponseSchema = z.object({
   id: z.string().uuid(),
