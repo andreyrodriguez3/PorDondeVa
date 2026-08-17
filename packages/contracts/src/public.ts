@@ -58,3 +58,33 @@ export const publicRouteLiveSchema = z.object({
   buses: z.array(publicBusUpdateSchema),
 });
 export type PublicRouteLive = z.infer<typeof publicRouteLiveSchema>;
+
+// A Stop is a shared physical location — the same one can sit on several routes/
+// variants (an intersection two different lines both pass through), so its detail
+// lists every route serving it rather than assuming just one.
+export const publicStopRouteSchema = z.object({
+  routeSlug: z.string(),
+  routeName: z.string(),
+  headsign: z.string(),
+});
+export type PublicStopRoute = z.infer<typeof publicStopRouteSchema>;
+
+export const publicStopDetailSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  latitude: z.number(),
+  longitude: z.number(),
+  routes: z.array(publicStopRouteSchema),
+});
+export type PublicStopDetail = z.infer<typeof publicStopDetailSchema>;
+
+export const publicApproachingBusSchema = publicBusUpdateSchema.extend({
+  routeSlug: z.string(),
+  routeName: z.string(),
+});
+export type PublicApproachingBus = z.infer<typeof publicApproachingBusSchema>;
+
+export const publicStopLiveSchema = z.object({
+  approaching: z.array(publicApproachingBusSchema),
+});
+export type PublicStopLive = z.infer<typeof publicStopLiveSchema>;
