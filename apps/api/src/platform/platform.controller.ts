@@ -22,7 +22,9 @@ export class PlatformController {
   }
 
   @Post('companies')
-  createCompany(@Body(new ZodValidationPipe(createCompanyRequestSchema)) body: CreateCompanyRequest) {
+  createCompany(
+    @Body(new ZodValidationPipe(createCompanyRequestSchema)) body: CreateCompanyRequest,
+  ) {
     return this.platform.createCompany(body);
   }
 

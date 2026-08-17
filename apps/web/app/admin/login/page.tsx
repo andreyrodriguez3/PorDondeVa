@@ -31,7 +31,7 @@ export default function LoginPage() {
       }
       const data = (await res.json()) as LoginResponse;
       storeSession(data.tokens, data.user);
-      router.replace('/live');
+      router.replace(data.user.role === 'SUPER_ADMIN' ? '/platform' : '/live');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error inesperado.');
     } finally {
