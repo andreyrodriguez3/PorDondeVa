@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import type { LocationHistoryPoint, TripResponse } from '@tubus/contracts';
+import type { IncidentResponse, LocationHistoryPoint, TripResponse } from '@tubus/contracts';
 import { adminFetch } from '@/lib/adminAuth';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { useToast } from '@/components/ui/Toast';
@@ -31,6 +31,13 @@ const STATUS_LABEL: Record<string, string> = {
   COMPLETED: 'Completado',
   CANCELLED: 'Cancelado',
   SCHEDULED: 'Programado',
+};
+
+const INCIDENT_CATEGORY_LABEL: Record<string, string> = {
+  VEHICLE: 'Problema con el vehículo',
+  TRAFFIC: 'Tráfico / incidente en la vía',
+  VEHICLE_CHANGE: 'Cambio de vehículo',
+  OTHER: 'Otro',
 };
 
 // A gap between two consecutive fixes this long, or a jump implying a speed this
@@ -90,6 +97,7 @@ function TripDetailContent({ tripId }: { tripId: string }) {
   const toast = useToast();
   const [trip, setTrip] = useState<TripResponse | null>(null);
   const [history, setHistory] = useState<LocationHistoryPoint[]>([]);
+  const [incidents, setIncidents] = useState<IncidentResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -99,12 +107,14 @@ function TripDetailContent({ tripId }: { tripId: string }) {
   async function load() {
     setLoading(true);
     try {
-      const [tripData, historyData] = await Promise.all([
+      const [tripData, historyData, incidentsData] = await Promise.all([
         adminFetch<TripResponse>(`/trips/${tripId}`),
         adminFetch<LocationHistoryPoint[]>(`/trips/${tripId}/locations`),
+        adminFetch<IncidentResponse[]>(`/trips/${tripId}/incidents`),
       ]);
       setTrip(tripData);
       setHistory(historyData);
+      setIncidents(incidentsData);
     } finally {
       setLoading(false);
     }
@@ -222,6 +232,11 @@ function TripDetailContent({ tripId }: { tripId: string }) {
           value={String(trip.rejectedPointCount)}
           tone={trip.rejectedPointCount > 0 ? 'danger' : undefined}
         />
+        <SummaryCard
+          label="Incidentes reportados"
+          value={String(incidents.length)}
+          tone={incidents.length > 0 ? 'danger' : undefined}
+        />
       </div>
 
       {geometry ? (
@@ -235,10 +250,33 @@ function TripDetailContent({ tripId }: { tripId: string }) {
         />
       )}
 
+      {incidents.length > 0 ? (
+        <div className="mt-6">
+          <h2 className="mb-2 text-title text-ink">Incidentes reportados</h2>
+          <ul className="flex flex-col divide-y divide-line rounded-lg border border-line bg-surface">
+            {incidents.map((incident) => (
+              <li key={incident.id} className="px-3.5 py-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-ink">
+                    {INCIDENT_CATEGORY_LABEL[incident.category] ?? incident.category}
+                  </span>
+                  <span className="text-caption text-ink-tertiary">
+                    {new Date(incident.createdAt).toLocaleString('es-CR')}
+                  </span>
+                </div>
+                {incident.note ? (
+                  <p className="mt-1 text-callout text-ink-secondary">{incident.note}</p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <ConfirmDialog
         open={confirmCancel}
         title="¿Cancelar este viaje?"
-        description="Solo funciona si todavía no tiene puntos GPS registrados — si el bus ya se movió, usá &quot;Finalizar viaje&quot; en su lugar."
+        description='Solo funciona si todavía no tiene puntos GPS registrados — si el bus ya se movió, usá "Finalizar viaje" en su lugar.'
         confirmLabel={cancelling ? 'Cancelando…' : 'Cancelar viaje'}
         onConfirm={handleCancelTrip}
         onCancel={() => setConfirmCancel(false)}

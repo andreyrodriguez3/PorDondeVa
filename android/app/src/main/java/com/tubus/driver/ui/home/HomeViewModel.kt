@@ -30,6 +30,8 @@ data class HomeUiState(
     val selectedRoute: RouteAssignmentDto? = null,
     val activeTrip: TripDto? = null,
     val error: String? = null,
+    val reportingIncident: Boolean = false,
+    val incidentReported: Boolean = false,
 )
 
 @HiltViewModel
@@ -104,6 +106,24 @@ class HomeViewModel @Inject constructor(
             }
         }
     }
+
+    fun reportIncident(category: String, note: String?) {
+        val trip = _state.value.activeTrip ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(reportingIncident = true) }
+            try {
+                tripRepository.reportIncident(trip.id, category, note)
+                _state.update { it.copy(reportingIncident = false, incidentReported = true) }
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(reportingIncident = false, error = "No se pudo reportar el incidente.")
+                }
+            }
+        }
+    }
+
+    /** Clears the one-shot "reported" flag once the UI has shown its confirmation. */
+    fun acknowledgeIncidentReported() = _state.update { it.copy(incidentReported = false) }
 
     fun logout() {
         authRepository.logout()

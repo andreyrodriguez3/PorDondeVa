@@ -27,6 +27,12 @@ interface ApiService {
     @POST("driver/trips/{id}/end")
     suspend fun endTrip(@Path("id") tripId: String)
 
+    @POST("driver/trips/{id}/incidents")
+    suspend fun reportIncident(
+        @Path("id") tripId: String,
+        @Body body: ReportIncidentRequest,
+    ): IncidentResponse
+
     @POST("driver/trips/{id}/locations")
     suspend fun submitLocations(
         @Path("id") tripId: String,

@@ -54,3 +54,20 @@ export const driverAssignmentResponseSchema = z.object({
   ),
 });
 export type DriverAssignmentResponse = z.infer<typeof driverAssignmentResponseSchema>;
+
+export const incidentCategorySchema = z.enum(['VEHICLE', 'TRAFFIC', 'VEHICLE_CHANGE', 'OTHER']);
+export type IncidentCategory = z.infer<typeof incidentCategorySchema>;
+
+export const reportIncidentRequestSchema = z.object({
+  category: incidentCategorySchema,
+  note: z.string().min(1).max(500).optional(),
+});
+export type ReportIncidentRequest = z.infer<typeof reportIncidentRequestSchema>;
+
+export const incidentResponseSchema = z.object({
+  id: z.string().uuid(),
+  category: incidentCategorySchema,
+  note: z.string().nullable(),
+  createdAt: z.string().datetime(),
+});
+export type IncidentResponse = z.infer<typeof incidentResponseSchema>;

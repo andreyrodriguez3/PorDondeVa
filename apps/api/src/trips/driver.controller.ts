@@ -10,7 +10,12 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { startTripRequestSchema, type StartTripRequest } from '@tubus/contracts';
+import {
+  reportIncidentRequestSchema,
+  startTripRequestSchema,
+  type ReportIncidentRequest,
+  type StartTripRequest,
+} from '@tubus/contracts';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/token.service';
@@ -29,10 +34,7 @@ export class DriverController {
   }
 
   @Get('trips/active')
-  async active(
-    @CurrentUser() user: JwtPayload,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async active(@CurrentUser() user: JwtPayload, @Res({ passthrough: true }) res: Response) {
     const trip = await this.trips.findActiveForDriver(requireCompanyId(user), user.sub);
     if (!trip) res.status(HttpStatus.NO_CONTENT);
     return trip;
@@ -50,5 +52,15 @@ export class DriverController {
   @Post('trips/:id/end')
   end(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.trips.end(requireCompanyId(user), id, 'DRIVER', { driverUserId: user.sub });
+  }
+
+  @HttpCode(HttpStatus.CREATED)
+  @Post('trips/:id/incidents')
+  reportIncident(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(reportIncidentRequestSchema)) body: ReportIncidentRequest,
+  ) {
+    return this.trips.reportIncident(requireCompanyId(user), id, user.sub, body);
   }
 }

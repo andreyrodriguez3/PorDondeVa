@@ -14,6 +14,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +30,7 @@ fun HomeScreen(onLoggedOut: () -> Unit, viewModel: HomeViewModel = hiltViewModel
     val state by viewModel.state.collectAsState()
     val queueDepth by viewModel.queueDepth.collectAsState()
     var confirmEndTrip by remember { mutableStateOf(false) }
+    var showIncidentSheet by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("TuBus Conductor", style = MaterialTheme.typography.headlineSmall)
@@ -44,9 +46,15 @@ fun HomeScreen(onLoggedOut: () -> Unit, viewModel: HomeViewModel = hiltViewModel
         if (trip != null) {
             Text("Viaje activo", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
             Text("Cola de sincronización: $queueDepth punto(s) pendiente(s)")
+            OutlinedButton(
+                onClick = { showIncidentSheet = true },
+                modifier = Modifier.padding(top = 16.dp).fillMaxWidth(),
+            ) {
+                Text("Reportar incidente")
+            }
             Button(
                 onClick = { confirmEndTrip = true },
-                modifier = Modifier.padding(top = 16.dp).fillMaxWidth(),
+                modifier = Modifier.padding(top = 8.dp).fillMaxWidth(),
             ) {
                 Text("Finalizar viaje")
             }
@@ -78,6 +86,21 @@ fun HomeScreen(onLoggedOut: () -> Unit, viewModel: HomeViewModel = hiltViewModel
         ) {
             Text("Cerrar sesión")
         }
+    }
+
+    LaunchedEffect(state.incidentReported) {
+        if (state.incidentReported) {
+            showIncidentSheet = false
+            viewModel.acknowledgeIncidentReported()
+        }
+    }
+
+    if (showIncidentSheet) {
+        IncidentSheet(
+            submitting = state.reportingIncident,
+            onDismiss = { showIncidentSheet = false },
+            onSubmit = { category, note -> viewModel.reportIncident(category, note) },
+        )
     }
 
     if (confirmEndTrip) {
