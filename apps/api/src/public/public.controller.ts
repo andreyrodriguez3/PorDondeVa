@@ -41,6 +41,16 @@ export class PublicController {
     return { buses };
   }
 
+  @Get('stops/:id')
+  stopDetail(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
+    return this.publicService.getStopDetail(companyId, id);
+  }
+
+  @Get('stops/:id/live')
+  stopLive(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
+    return this.publicService.getStopLive(companyId, id);
+  }
+
   @HttpCode(HttpStatus.OK)
   @Get('domains/allowed')
   async domainAllowed(@Query('domain') domain?: string) {

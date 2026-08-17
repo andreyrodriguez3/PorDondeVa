@@ -28,4 +28,15 @@ export class QrController {
     res.setHeader('Content-Type', 'image/png');
     res.send(png);
   }
+
+  @Get('stop/:id')
+  async stop(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const png = await this.qr.stopQrPng(requireCompanyId(user), id);
+    res.setHeader('Content-Type', 'image/png');
+    res.send(png);
+  }
 }

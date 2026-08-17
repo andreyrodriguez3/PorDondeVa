@@ -22,6 +22,17 @@ export class QrService {
     return QRCode.toBuffer(`${base}/r/${route.publicSlug}`, { type: 'png', margin: 1, width: 512 });
   }
 
+  async stopQrPng(companyId: string, stopId: string): Promise<Buffer> {
+    const stop = await this.prisma.scoped.stop.findFirst({
+      where: { companyId, id: stopId },
+      select: { id: true },
+    });
+    if (!stop) throw new NotFoundException();
+
+    const base = await this.primaryUrl(companyId);
+    return QRCode.toBuffer(`${base}/s/${stop.id}`, { type: 'png', margin: 1, width: 512 });
+  }
+
   private async primaryUrl(companyId: string): Promise<string> {
     const domain = await this.prisma.companyDomain.findFirst({
       where: { companyId, isPrimary: true },

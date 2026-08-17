@@ -34,6 +34,11 @@ export class TripsController {
     return this.trips.listLocationHistory(requireCompanyId(user), id);
   }
 
+  @Get(':id/incidents')
+  incidents(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
+    return this.trips.listIncidents(requireCompanyId(user), id);
+  }
+
   @HttpCode(HttpStatus.OK)
   @Post(':id/end')
   end(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
