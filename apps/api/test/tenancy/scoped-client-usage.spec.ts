@@ -20,6 +20,9 @@ import { TENANT_SCOPED_MODELS } from '../../src/common/prisma/tenant-scope.guard
  *    maintenance.service.ts), which operate across every company in one batch on
  *    purpose; scoping them would mean a per-company loop, changing their performance
  *    characteristics for no safety gain (they don't accept per-request tenant input).
+ *  - SUPER_ADMIN's own module (platform.service.ts): SUPER_ADMIN is the one legitimate
+ *    cross-tenant actor in the system (D-A7 in ROADMAP.md) — it creates companies and
+ *    their first admin, which by definition isn't scoped to a single existing company.
  *
  * It should stay this short — a new entry here should come with the same kind of
  * justification, not just "didn't get to it yet".
@@ -31,6 +34,7 @@ const ALLOWED_RAW_CLIENT_FILES = new Set([
   'auth/auth.service.ts',
   'live/live.gateway.ts',
   'maintenance/maintenance.service.ts',
+  'platform/platform.service.ts',
   'public/public.service.ts',
   'tenancy/host-resolution.middleware.ts',
 ]);
