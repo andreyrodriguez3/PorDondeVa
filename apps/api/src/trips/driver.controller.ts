@@ -34,10 +34,7 @@ export class DriverController {
   }
 
   @Get('trips/active')
-  async active(
-    @CurrentUser() user: JwtPayload,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async active(@CurrentUser() user: JwtPayload, @Res({ passthrough: true }) res: Response) {
     const trip = await this.trips.findActiveForDriver(requireCompanyId(user), user.sub);
     if (!trip) res.status(HttpStatus.NO_CONTENT);
     return trip;
