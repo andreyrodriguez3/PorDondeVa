@@ -1,5 +1,6 @@
 export * from './roles';
 export * from './error';
+export * from './password';
 export * from './auth';
 export * from './fleet';
 export * from './routes';
