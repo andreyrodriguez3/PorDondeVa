@@ -87,6 +87,12 @@ data class PointResultDto(val clientPointId: String, val outcome: String, val re
 data class SubmitLocationsResponse(val results: List<PointResultDto>)
 
 @Serializable
+data class ReportIncidentRequest(val category: String, val note: String? = null)
+
+@Serializable
+data class IncidentResponse(val id: String, val category: String, val note: String?, val createdAt: String)
+
+@Serializable
 data class ApiErrorEnvelope(val error: ApiErrorBody)
 
 @Serializable

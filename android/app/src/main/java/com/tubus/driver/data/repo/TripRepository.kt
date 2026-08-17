@@ -2,6 +2,8 @@ package com.tubus.driver.data.repo
 
 import com.tubus.driver.data.remote.ApiService
 import com.tubus.driver.data.remote.DriverAssignmentResponse
+import com.tubus.driver.data.remote.IncidentResponse
+import com.tubus.driver.data.remote.ReportIncidentRequest
 import com.tubus.driver.data.remote.StartTripRequest
 import com.tubus.driver.data.remote.TripDto
 import javax.inject.Inject
@@ -20,4 +22,7 @@ class TripRepository @Inject constructor(private val api: ApiService) {
     suspend fun endTrip(tripId: String) {
         api.endTrip(tripId)
     }
+
+    suspend fun reportIncident(tripId: String, category: String, note: String?): IncidentResponse =
+        api.reportIncident(tripId, ReportIncidentRequest(category, note))
 }
