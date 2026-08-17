@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { PublicBusUpdate } from '@tubus/contracts';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { computeLiveState } from '../common/live-status';
+import { computeNextStopEta } from '../common/route-eta';
 
 @Injectable()
 export class LiveService {
@@ -14,11 +15,11 @@ export class LiveService {
       where: { companyId },
       include: {
         bus: { select: { label: true } },
-        variant: { select: { headsign: true } },
+        variant: { select: { headsign: true, geometry: true, stops: STOPS_INCLUDE } },
       },
     });
     const now = new Date();
-    return states.map((s) => toPublicUpdate(s, s.bus.label, s.variant.headsign, now, company));
+    return states.map((s) => toPublicUpdate(s, s.bus.label, s.variant, now, company));
   }
 
   /** Public REST snapshot for one route — used for initial page load and polling fallback. */
@@ -35,13 +36,18 @@ export class LiveService {
       where: { companyId, routeVariantId: { in: variantIds } },
       include: {
         bus: { select: { label: true } },
-        variant: { select: { headsign: true } },
+        variant: { select: { headsign: true, geometry: true, stops: STOPS_INCLUDE } },
       },
     });
     const now = new Date();
-    return states.map((s) => toPublicUpdate(s, s.bus.label, s.variant.headsign, now, company));
+    return states.map((s) => toPublicUpdate(s, s.bus.label, s.variant, now, company));
   }
 }
+
+const STOPS_INCLUDE = {
+  select: { stop: { select: { id: true, latitude: true, longitude: true } } },
+  orderBy: { sequence: 'asc' as const },
+};
 
 function toPublicUpdate(
   state: {
@@ -55,15 +61,31 @@ function toPublicUpdate(
     deviceTimestamp: Date;
   },
   busLabel: string,
-  headsign: string,
+  variant: {
+    headsign: string;
+    geometry: unknown;
+    stops: { stop: { id: string; latitude: number; longitude: number } }[];
+  },
   now: Date,
   company: { liveThresholdSeconds: number; staleThresholdSeconds: number },
 ): PublicBusUpdate {
+  // No recent-fix history available for a snapshot read (unlike the ingest path, which
+  // averages a short window) — falls back to this one fix's own speed, or the ETA
+  // helper's own floor if even that is null.
+  const geometry = variant.geometry as { coordinates: [number, number][] };
+  const eta = computeNextStopEta(
+    geometry.coordinates,
+    variant.stops.map((s) => s.stop),
+    state.latitude,
+    state.longitude,
+    state.speedMps !== null ? [state.speedMps] : [],
+  );
+
   return {
     tripId: state.tripId,
     routeVariantId: state.routeVariantId,
     busLabel,
-    headsign,
+    headsign: variant.headsign,
     lat: state.latitude,
     lng: state.longitude,
     bearingDeg: state.bearingDeg,
@@ -76,5 +98,7 @@ function toPublicUpdate(
       company.liveThresholdSeconds,
       company.staleThresholdSeconds,
     ),
+    nextStopId: eta?.nextStopId ?? null,
+    etaSeconds: eta?.etaSeconds ?? null,
   };
 }

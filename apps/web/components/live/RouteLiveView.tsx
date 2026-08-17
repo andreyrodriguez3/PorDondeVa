@@ -29,6 +29,20 @@ function pickDefaultVariant(variants: PublicVariant[], buses: PublicBusUpdate[])
   return (variants.find((v) => v.isDefault) ?? variants[0])!.id;
 }
 
+/** Only shown for a LIVE bus (D19) — an ETA computed from a stale fix is more likely to
+ * mislead than help, so it's withheld rather than shown next to a "sin señal" badge. */
+function EtaLabel({ bus, nextStopName }: { bus: PublicBusUpdate; nextStopName?: string }) {
+  if (bus.state !== 'LIVE' || bus.etaSeconds === null) return null;
+  const minutes = Math.round(bus.etaSeconds / 60);
+  const label = minutes < 1 ? copy.etaArriving : copy.etaMinutes(minutes);
+  return (
+    <span className="text-caption text-ink-tertiary">
+      {label}
+      {nextStopName ? ` · ${nextStopName}` : ''}
+    </span>
+  );
+}
+
 function BusMiniIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -62,6 +76,10 @@ export function RouteLiveView({
   const busesForVariant = useMemo(
     () => buses.filter((b) => b.routeVariantId === selectedVariantId),
     [buses, selectedVariantId],
+  );
+  const stopNameById = useMemo(
+    () => new Map(selectedVariant.stops.map((s) => [s.id, s.name])),
+    [selectedVariant],
   );
 
   return (
@@ -116,7 +134,13 @@ export function RouteLiveView({
                       : 'border-line bg-surface hover:border-line-strong'
                   }`}
                 >
-                  <span className="font-medium text-ink">{bus.busLabel}</span>
+                  <span className="flex flex-col">
+                    <span className="font-medium text-ink">{bus.busLabel}</span>
+                    <EtaLabel
+                      bus={bus}
+                      nextStopName={bus.nextStopId ? stopNameById.get(bus.nextStopId) : undefined}
+                    />
+                  </span>
                   <LiveStatusBadge bus={bus} />
                 </button>
               </li>
