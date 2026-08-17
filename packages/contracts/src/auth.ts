@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { roleSchema } from './roles';
+import { passwordSchema } from './password';
 
 // Web surface: email + password (D15 — email is globally unique).
 export const webLoginRequestSchema = z.object({
@@ -46,6 +47,6 @@ export type RefreshRequest = z.infer<typeof refreshRequestSchema>;
 
 export const changePasswordRequestSchema = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(8),
+  newPassword: passwordSchema,
 });
 export type ChangePasswordRequest = z.infer<typeof changePasswordRequestSchema>;
