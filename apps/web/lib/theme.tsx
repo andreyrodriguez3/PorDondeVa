@@ -48,7 +48,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyTheme(preference);
   }, [preference]);
 
-  return <ThemeContext.Provider value={{ preference, setPreference }}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={{ preference, setPreference }}>{children}</ThemeContext.Provider>
+  );
 }
 
 export function useTheme(): ThemeContextValue {

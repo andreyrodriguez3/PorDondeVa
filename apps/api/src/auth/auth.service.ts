@@ -121,9 +121,7 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('Invalid credentials.');
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
-      throw new UnauthorizedException(
-        'Too many failed attempts. Try again in a few minutes.',
-      );
+      throw new UnauthorizedException('Too many failed attempts. Try again in a few minutes.');
     }
 
     const valid = await argon2.verify(user.passwordHash, password);

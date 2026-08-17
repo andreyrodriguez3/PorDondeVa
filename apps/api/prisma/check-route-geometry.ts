@@ -21,7 +21,8 @@ function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number)
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
   const h =
-    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return 2 * earthRadiusM * Math.asin(Math.sqrt(h));
 }
 
@@ -80,7 +81,9 @@ async function main() {
     console.error(`\n${violations} violation(s) found across ${variants.length} route variant(s).`);
     process.exitCode = 1;
   } else {
-    console.log(`All ${variants.length} route variant(s) pass — every stop sits on its route line, in order.`);
+    console.log(
+      `All ${variants.length} route variant(s) pass — every stop sits on its route line, in order.`,
+    );
   }
 }
 

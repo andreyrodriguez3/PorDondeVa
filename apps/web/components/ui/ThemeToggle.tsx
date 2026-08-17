@@ -48,10 +48,7 @@ function SunIcon() {
 function MoonIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M20.4 14.7A8.5 8.5 0 1 1 9.3 3.6a7 7 0 0 0 11.1 11.1Z"
-      />
+      <path fill="currentColor" d="M20.4 14.7A8.5 8.5 0 1 1 9.3 3.6a7 7 0 0 0 11.1 11.1Z" />
     </svg>
   );
 }
@@ -60,7 +57,12 @@ function SystemIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect x="3" y="4.5" width="18" height="12" rx="2" stroke="currentColor" strokeWidth="1.8" />
-      <path stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" d="M8.5 20.5h7M12 16.5v4" />
+      <path
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        d="M8.5 20.5h7M12 16.5v4"
+      />
     </svg>
   );
 }
