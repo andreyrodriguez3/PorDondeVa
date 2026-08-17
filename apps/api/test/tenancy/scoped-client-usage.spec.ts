@@ -9,28 +9,30 @@ import { TENANT_SCOPED_MODELS } from '../../src/common/prisma/tenant-scope.guard
  * compile-time or runtime distinction between the two paths. This test scans the source
  * for that bypass so a NEW one can't be introduced without a deliberate decision.
  *
- * The allowlist below is today's known debt (~13 files, audited at the time this test
- * was added — none leak cross-tenant data today, they just aren't routed through
- * `.scoped`). It should shrink over time as those call sites get migrated, never grow
- * without someone consciously adding to it here.
+ * The allowlist below is what's left after migrating the mechanically-safe call sites
+ * to `.scoped` — each remaining file falls into one of two structurally-legitimate
+ * categories, not leftover debt:
+ *
+ *  - Tenant-resolution / bootstrap paths, where companyId is the *output* of the query,
+ *    not a known input (auth login/session lookups, Host-header → company resolution,
+ *    Caddy's on-demand-TLS domain check). These can't be scoped by definition.
+ *  - Intentionally cross-tenant system jobs (the retention purge and stale-trip sweep in
+ *    maintenance.service.ts), which operate across every company in one batch on
+ *    purpose; scoping them would mean a per-company loop, changing their performance
+ *    characteristics for no safety gain (they don't accept per-request tenant input).
+ *
+ * It should stay this short — a new entry here should come with the same kind of
+ * justification, not just "didn't get to it yet".
  */
 const SRC_ROOT = join(__dirname, '../../src');
 
 const ALLOWED_RAW_CLIENT_FILES = new Set([
   'auth/auth.controller.ts',
   'auth/auth.service.ts',
-  'buses/buses.service.ts',
-  'companies/companies.service.ts',
-  'drivers/drivers.service.ts',
   'live/live.gateway.ts',
   'maintenance/maintenance.service.ts',
   'public/public.service.ts',
-  'qr/qr.service.ts',
-  'routes/routes.service.ts',
-  'schedules/schedules.service.ts',
-  'stops/stops.service.ts',
   'tenancy/host-resolution.middleware.ts',
-  'trips/trips.service.ts',
 ]);
 
 function pascalToCamel(model: string): string {

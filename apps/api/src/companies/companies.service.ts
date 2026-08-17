@@ -112,8 +112,8 @@ export class CompaniesService {
       throw new BadRequestException('This hostname does not resolve yet. Check your DNS records.');
     }
 
-    const updated = await this.prisma.companyDomain.update({
-      where: { id: domainId },
+    const updated = await this.prisma.scoped.companyDomain.update({
+      where: { id: domainId, companyId },
       data: { verifiedAt: new Date() },
     });
     return toDomainResponse(updated);
@@ -124,7 +124,7 @@ export class CompaniesService {
       where: { companyId, id: domainId },
     });
     if (!domain) throw new NotFoundException();
-    await this.prisma.companyDomain.delete({ where: { id: domainId } });
+    await this.prisma.scoped.companyDomain.delete({ where: { id: domainId, companyId } });
   }
 }
 

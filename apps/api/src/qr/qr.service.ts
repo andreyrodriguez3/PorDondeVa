@@ -23,7 +23,7 @@ export class QrService {
   }
 
   private async primaryUrl(companyId: string): Promise<string> {
-    const domain = await this.prisma.companyDomain.findFirst({
+    const domain = await this.prisma.scoped.companyDomain.findFirst({
       where: { companyId, isPrimary: true },
     });
     if (!domain) throw new NotFoundException('This company has no primary domain configured.');

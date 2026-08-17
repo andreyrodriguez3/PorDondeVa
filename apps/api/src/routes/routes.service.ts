@@ -47,7 +47,7 @@ export class RoutesService {
 
   async update(companyId: string, id: string, dto: UpdateRouteRequest): Promise<RouteResponse> {
     await this.findOne(companyId, id);
-    const route = await this.prisma.route.update({ where: { id }, data: dto });
+    const route = await this.prisma.scoped.route.update({ where: { id, companyId }, data: dto });
     return toRouteResponse(route);
   }
 
@@ -76,7 +76,7 @@ export class RoutesService {
     await this.findOne(companyId, routeId);
 
     if (dto.isDefault) {
-      await this.prisma.routeVariant.updateMany({
+      await this.prisma.scoped.routeVariant.updateMany({
         where: { companyId, routeId },
         data: { isDefault: false },
       });
@@ -112,14 +112,14 @@ export class RoutesService {
     const existing = await this.findVariant(companyId, variantId);
 
     if (dto.isDefault) {
-      await this.prisma.routeVariant.updateMany({
+      await this.prisma.scoped.routeVariant.updateMany({
         where: { companyId, routeId: existing.routeId, id: { not: variantId } },
         data: { isDefault: false },
       });
     }
 
-    const variant = await this.prisma.routeVariant.update({
-      where: { id: variantId },
+    const variant = await this.prisma.scoped.routeVariant.update({
+      where: { id: variantId, companyId },
       data: {
         name: dto.name,
         headsign: dto.headsign,
