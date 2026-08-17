@@ -640,6 +640,8 @@ A11, A13 and A18 are resolved and no longer need an answer. Questions 1–3 belo
 | Stop-level QR codes and "next buses at this stop" | Companies ask for stop signage                                                                  | §23 lists this as optional; needs arrival estimation to be useful  |
 | i18n framework                                    | A second language is actually required                                                          | Until then, one `copy.ts` dictionary (A11)                         |
 | Object storage for logos                          | Multiple app servers, or the volume becomes awkward to back up                                  | One-file swap behind the existing upload service (§1.2)            |
+| Reduced-precision live position (fuzz/segment-level between stops, full precision near stops) | A bus operator flags real-world robbery/assault risk from exact live GPS being public and unauthenticated | Not built speculatively — validate with operators first; the ETA feature (built) already covers "when does it arrive" without needing a live dot |
+| Driver panic/incident button                      | Revisited alongside the "incidentes" feature                                                    | `TripIncident` already exists in the schema; needs the UI/flow     |
 
 ---
 

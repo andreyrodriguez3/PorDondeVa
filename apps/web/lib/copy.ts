@@ -36,6 +36,8 @@ export const copy = {
   backToRoutes: 'Volver a rutas',
   viewOnMap: 'Ver en el mapa',
   speedLabel: (kmh: number) => `${kmh} km/h`,
+  etaArriving: 'llegando',
+  etaMinutes: (n: number) => `llega en ${n} min`,
   daysOfWeek: (days: number[]): string => {
     if (days.length === 7) return 'Todos los días';
     const sorted = [...days].sort((a, b) => a - b);
