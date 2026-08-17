@@ -77,7 +77,9 @@ export function AdminNav({ mobileOpen = false, onCloseMobile }: AdminNavProps) {
                 <motion.span
                   layoutId="admin-nav-active"
                   className="absolute inset-0 rounded-md bg-brand/10"
-                  transition={reduced ? { duration: 0 } : { type: 'spring', bounce: 0, duration: 0.35 }}
+                  transition={
+                    reduced ? { duration: 0 } : { type: 'spring', bounce: 0, duration: 0.35 }
+                  }
                 />
               ) : null}
               <span className="relative z-10">

@@ -39,7 +39,9 @@ export function SegmentedControl({
               <motion.span
                 layoutId="segmented-pill"
                 className="absolute inset-0 rounded-full bg-brand shadow-elevate-1"
-                transition={reduced ? { duration: 0 } : { type: 'spring', bounce: 0, duration: 0.35 }}
+                transition={
+                  reduced ? { duration: 0 } : { type: 'spring', bounce: 0, duration: 0.35 }
+                }
               />
             ) : null}
             <span className="relative z-10">{option.label}</span>

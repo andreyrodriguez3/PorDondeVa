@@ -313,9 +313,9 @@ export function MapView({
               x: fromPx.x + prevOffset.x - toPx.x,
               y: fromPx.y + prevOffset.y - toPx.y,
             };
-            const wrapperEl = activeMarker.getElement().querySelector<HTMLElement>(
-              '.tubus-marker-wrapper',
-            );
+            const wrapperEl = activeMarker
+              .getElement()
+              .querySelector<HTMLElement>('.tubus-marker-wrapper');
 
             const startedAt = performance.now();
             const step = (now: number) => {

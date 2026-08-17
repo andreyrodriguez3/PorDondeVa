@@ -26,9 +26,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
         <div className="max-w-sm rounded-lg border border-line bg-surface p-6 text-center shadow-elevate-1">
           <p className="text-title text-ink">Cuenta de super administrador</p>
           <p className="mt-2 text-callout text-ink-secondary">
-            Esta cuenta administra la plataforma (crear empresas, dominios), no los
-            datos operativos de una empresa. Iniciá sesión con una cuenta de
-            administrador de empresa para ver este panel.
+            Esta cuenta administra la plataforma (crear empresas, dominios), no los datos operativos
+            de una empresa. Iniciá sesión con una cuenta de administrador de empresa para ver este
+            panel.
           </p>
           <Button
             className="mt-4 w-full"

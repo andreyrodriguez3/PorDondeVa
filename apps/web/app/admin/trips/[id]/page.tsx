@@ -238,7 +238,7 @@ function TripDetailContent({ tripId }: { tripId: string }) {
       <ConfirmDialog
         open={confirmCancel}
         title="¿Cancelar este viaje?"
-        description="Solo funciona si todavía no tiene puntos GPS registrados — si el bus ya se movió, usá &quot;Finalizar viaje&quot; en su lugar."
+        description='Solo funciona si todavía no tiene puntos GPS registrados — si el bus ya se movió, usá "Finalizar viaje" en su lugar.'
         confirmLabel={cancelling ? 'Cancelando…' : 'Cancelar viaje'}
         onConfirm={handleCancelTrip}
         onCancel={() => setConfirmCancel(false)}
