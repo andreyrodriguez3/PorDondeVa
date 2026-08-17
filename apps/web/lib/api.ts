@@ -3,6 +3,8 @@ import type {
   PublicRouteDetail,
   PublicRouteLive,
   PublicRouteSummary,
+  PublicStopDetail,
+  PublicStopLive,
 } from '@tubus/contracts';
 
 const API_URL = process.env.PUBLIC_API_URL ?? 'http://localhost:8080';
@@ -38,4 +40,12 @@ export function getRouteDetail(hostname: string, slug: string) {
 
 export function getRouteLive(hostname: string, slug: string) {
   return publicApiFetch<PublicRouteLive>(hostname, `/public/routes/${slug}/live`);
+}
+
+export function getStopDetail(hostname: string, stopId: string) {
+  return publicApiFetch<PublicStopDetail>(hostname, `/public/stops/${stopId}`);
+}
+
+export function getStopLive(hostname: string, stopId: string) {
+  return publicApiFetch<PublicStopLive>(hostname, `/public/stops/${stopId}/live`);
 }
