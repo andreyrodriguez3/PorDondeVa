@@ -1,6 +1,12 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { DriverAssignmentResponse, StartTripRequest, TripResponse } from '@tubus/contracts';
+import type {
+  DriverAssignmentResponse,
+  IncidentResponse,
+  ReportIncidentRequest,
+  StartTripRequest,
+  TripResponse,
+} from '@tubus/contracts';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 @Injectable()
@@ -173,6 +179,45 @@ export class TripsService {
     return toResponse(trip);
   }
 
+  /**
+   * A driver reports what's happening, not what to do about it — no severity/urgency
+   * field, no admin action triggered automatically (SPECS.md §6 lists this as the
+   * "optional MVP feature"; a real-time alert to the admin is a deliberate follow-up,
+   * not bundled in here). The trip must belong to this driver, same ownership check
+   * every other driver-facing trip mutation uses.
+   */
+  async reportIncident(
+    companyId: string,
+    tripId: string,
+    driverUserId: string,
+    dto: ReportIncidentRequest,
+  ): Promise<IncidentResponse> {
+    const trip = await this.prisma.scoped.trip.findFirst({
+      where: { companyId, id: tripId, driverUserId },
+    });
+    if (!trip) throw new NotFoundException();
+
+    const incident = await this.prisma.scoped.tripIncident.create({
+      data: {
+        companyId,
+        tripId,
+        reportedByUserId: driverUserId,
+        category: dto.category,
+        note: dto.note ?? null,
+      },
+    });
+    return toIncidentResponse(incident);
+  }
+
+  async listIncidents(companyId: string, tripId: string): Promise<IncidentResponse[]> {
+    await this.findOne(companyId, tripId);
+    const incidents = await this.prisma.scoped.tripIncident.findMany({
+      where: { companyId, tripId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return incidents.map(toIncidentResponse);
+  }
+
   async listLocationHistory(companyId: string, tripId: string) {
     await this.findOne(companyId, tripId);
     return this.prisma.scoped.locationPoint.findMany({
@@ -188,6 +233,20 @@ export class TripsService {
       },
     });
   }
+}
+
+function toIncidentResponse(incident: {
+  id: string;
+  category: string;
+  note: string | null;
+  createdAt: Date;
+}): IncidentResponse {
+  return {
+    id: incident.id,
+    category: incident.category as IncidentResponse['category'],
+    note: incident.note,
+    createdAt: incident.createdAt.toISOString(),
+  };
 }
 
 const TRIP_LABEL_INCLUDE = {
