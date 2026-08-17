@@ -21,6 +21,7 @@ import { PublicModule } from './public/public.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
 import { QrModule } from './qr/qr.module';
 import { CompaniesModule } from './companies/companies.module';
+import { PlatformModule } from './platform/platform.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { CompaniesModule } from './companies/companies.module';
     MaintenanceModule,
     QrModule,
     CompaniesModule,
+    PlatformModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

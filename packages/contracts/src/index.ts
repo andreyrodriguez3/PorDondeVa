@@ -9,3 +9,4 @@ export * from './trips';
 export * from './live';
 export * from './public';
 export * from './companies';
+export * from './platform';
