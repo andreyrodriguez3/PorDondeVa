@@ -38,6 +38,10 @@ export const copy = {
   speedLabel: (kmh: number) => `${kmh} km/h`,
   etaArriving: 'llegando',
   etaMinutes: (n: number) => `llega en ${n} min`,
+  stopNotFound: 'No se encontró esta parada.',
+  approachingHeading: 'Buses acercándose',
+  noApproachingBuses: 'Ningún bus se está acercando a esta parada en este momento.',
+  noApproachingBusesHint: 'Los buses aparecerán aquí cuando estén por llegar.',
   daysOfWeek: (days: number[]): string => {
     if (days.length === 7) return 'Todos los días';
     const sorted = [...days].sort((a, b) => a - b);

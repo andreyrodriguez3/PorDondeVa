@@ -126,12 +126,19 @@ export class PublicService {
     const routes = stop.variantStops
       .filter((link) => link.variant.status === 'ACTIVE' && link.variant.route.status === 'ACTIVE')
       .map((link) => ({
+        routeVariantId: link.variant.id,
         routeSlug: link.variant.route.publicSlug,
         routeName: link.variant.route.name,
         headsign: link.variant.headsign,
       }));
 
-    return { id: stop.id, name: stop.name, latitude: stop.latitude, longitude: stop.longitude, routes };
+    return {
+      id: stop.id,
+      name: stop.name,
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+      routes,
+    };
   }
 
   /**

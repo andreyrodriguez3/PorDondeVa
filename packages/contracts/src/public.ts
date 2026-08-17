@@ -63,6 +63,7 @@ export type PublicRouteLive = z.infer<typeof publicRouteLiveSchema>;
 // variants (an intersection two different lines both pass through), so its detail
 // lists every route serving it rather than assuming just one.
 export const publicStopRouteSchema = z.object({
+  routeVariantId: z.string().uuid(),
   routeSlug: z.string(),
   routeName: z.string(),
   headsign: z.string(),
