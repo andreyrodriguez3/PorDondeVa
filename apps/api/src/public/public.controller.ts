@@ -5,6 +5,7 @@ import {
   HttpStatus,
   NotFoundException,
   Param,
+  ParseUUIDPipe,
   Query,
 } from '@nestjs/common';
 import { Public } from '../auth/decorators/public.decorator';
@@ -42,12 +43,12 @@ export class PublicController {
   }
 
   @Get('stops/:id')
-  stopDetail(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
+  stopDetail(@CurrentCompanyId() companyId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.publicService.getStopDetail(companyId, id);
   }
 
   @Get('stops/:id/live')
-  stopLive(@CurrentCompanyId() companyId: string, @Param('id') id: string) {
+  stopLive(@CurrentCompanyId() companyId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.publicService.getStopLive(companyId, id);
   }
 

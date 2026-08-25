@@ -18,6 +18,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
+// Must match reportIncidentRequestSchema's note field (packages/contracts/src/trips.ts) —
+// exceeding this server-side turns into a generic "couldn't report" error with no
+// indication it was just too long, so it's enforced here too.
+private const val MAX_NOTE_LENGTH = 500
+
 private val CATEGORIES = listOf(
     "VEHICLE" to "Problema con el vehículo",
     "TRAFFIC" to "Tráfico / incidente en la vía",
@@ -65,8 +70,9 @@ fun IncidentSheet(submitting: Boolean, onDismiss: () -> Unit, onSubmit: (categor
                 }
                 OutlinedTextField(
                     value = note,
-                    onValueChange = { note = it },
+                    onValueChange = { if (it.length <= MAX_NOTE_LENGTH) note = it },
                     label = { Text("Nota (opcional)") },
+                    supportingText = { Text("${note.length}/$MAX_NOTE_LENGTH") },
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
             }

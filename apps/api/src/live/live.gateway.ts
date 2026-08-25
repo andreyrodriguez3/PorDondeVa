@@ -112,9 +112,9 @@ export class LiveGateway implements OnGatewayConnection {
 
     const domain = await this.prisma.companyDomain.findUnique({
       where: { hostname: hostname.toLowerCase() },
-      select: { companyId: true, verifiedAt: true },
+      select: { companyId: true, verifiedAt: true, company: { select: { status: true } } },
     });
-    if (!domain || !domain.verifiedAt) {
+    if (!domain || !domain.verifiedAt || domain.company.status !== 'ACTIVE') {
       this.logger.debug(`Rejected socket connection for unknown host ${hostname}`);
       return null;
     }

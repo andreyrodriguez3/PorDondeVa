@@ -279,6 +279,7 @@ model RouteVariantStop {
 
   @@unique([routeVariantId, stopId])
   @@index([routeVariantId, sequence])
+  @@index([companyId, stopId])
   @@map("route_variant_stops")
 }
 
