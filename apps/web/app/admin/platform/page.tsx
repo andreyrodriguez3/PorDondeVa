@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -31,6 +32,8 @@ function PlatformContent() {
   const [timezone, setTimezone] = useState('America/Costa_Rica');
   const [submitting, setSubmitting] = useState(false);
   const [adminTarget, setAdminTarget] = useState<PlatformCompanyResponse | null>(null);
+  const [suspendTarget, setSuspendTarget] = useState<PlatformCompanyResponse | null>(null);
+  const [suspending, setSuspending] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -64,8 +67,10 @@ function PlatformContent() {
     }
   }
 
-  async function handleToggleStatus(company: PlatformCompanyResponse) {
-    const nextStatus = company.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+  async function updateStatus(
+    company: PlatformCompanyResponse,
+    nextStatus: 'ACTIVE' | 'SUSPENDED',
+  ) {
     try {
       await adminFetch(`/platform/companies/${company.id}`, {
         method: 'PATCH',
@@ -81,6 +86,17 @@ function PlatformContent() {
     } catch (err) {
       toast.show(err instanceof Error ? err.message : 'No se pudo actualizar la empresa.', 'error');
     }
+  }
+
+  // Reactivating is benign — suspending locks out every one of the company's staff and
+  // 404s its passenger site the moment this lands, immediately and company-wide, so it
+  // gets the same confirm-before-destructive treatment as removing a stop or schedule.
+  async function handleConfirmSuspend() {
+    if (!suspendTarget) return;
+    setSuspending(true);
+    await updateStatus(suspendTarget, 'SUSPENDED');
+    setSuspending(false);
+    setSuspendTarget(null);
   }
 
   return (
@@ -151,7 +167,11 @@ function PlatformContent() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleToggleStatus(company)}
+                      onClick={() =>
+                        company.status === 'ACTIVE'
+                          ? setSuspendTarget(company)
+                          : updateStatus(company, 'ACTIVE')
+                      }
                       className="text-caption font-medium text-ink-tertiary hover:text-danger"
                     >
                       {company.status === 'ACTIVE' ? 'Suspender' : 'Reactivar'}
@@ -168,6 +188,15 @@ function PlatformContent() {
         company={adminTarget}
         onClose={() => setAdminTarget(null)}
         onDone={() => toast.show('Administrador creado', 'success')}
+      />
+
+      <ConfirmDialog
+        open={suspendTarget !== null}
+        title={`¿Suspender "${suspendTarget?.name}"?`}
+        description="Su sitio de pasajeros deja de responder y ningún administrador, operador o conductor de esta empresa va a poder iniciar sesión, de inmediato. Podés reactivarla en cualquier momento."
+        confirmLabel={suspending ? 'Suspendiendo…' : 'Suspender'}
+        onConfirm={handleConfirmSuspend}
+        onCancel={() => setSuspendTarget(null)}
       />
     </div>
   );
