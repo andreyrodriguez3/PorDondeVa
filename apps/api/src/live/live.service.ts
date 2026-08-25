@@ -2,7 +2,11 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { PublicBusUpdate } from '@tubus/contracts';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { computeLiveState } from '../common/live-status';
-import { computeNextStopEta } from '../common/route-eta';
+import {
+  buildStopDistanceIndex,
+  computeNextStopEtaFromIndex,
+  type StopDistanceEntry,
+} from '../common/route-eta';
 
 @Injectable()
 export class LiveService {
@@ -19,7 +23,10 @@ export class LiveService {
       },
     });
     const now = new Date();
-    return states.map((s) => toPublicUpdate(s, s.bus.label, s.variant, now, company));
+    const stopIndexCache = new Map<string, StopDistanceEntry[]>();
+    return states.map((s) =>
+      toPublicUpdate(s, s.bus.label, s.variant, now, company, stopIndexCache),
+    );
   }
 
   /** Public REST snapshot for one route — used for initial page load and polling fallback. */
@@ -40,7 +47,10 @@ export class LiveService {
       },
     });
     const now = new Date();
-    return states.map((s) => toPublicUpdate(s, s.bus.label, s.variant, now, company));
+    const stopIndexCache = new Map<string, StopDistanceEntry[]>();
+    return states.map((s) =>
+      toPublicUpdate(s, s.bus.label, s.variant, now, company, stopIndexCache),
+    );
   }
 }
 
@@ -68,14 +78,27 @@ function toPublicUpdate(
   },
   now: Date,
   company: { liveThresholdSeconds: number; staleThresholdSeconds: number },
+  stopIndexCache: Map<string, StopDistanceEntry[]>,
 ): PublicBusUpdate {
   // No recent-fix history available for a snapshot read (unlike the ingest path, which
   // averages a short window) — falls back to this one fix's own speed, or the ETA
   // helper's own floor if even that is null.
   const geometry = variant.geometry as { coordinates: [number, number][] };
-  const eta = computeNextStopEta(
+
+  // Every stop's distance-along-the-line is the same for every bus running this variant
+  // in this request — build it once per variant, not once per bus (route-eta.ts).
+  let stopIndex = stopIndexCache.get(state.routeVariantId);
+  if (!stopIndex) {
+    stopIndex = buildStopDistanceIndex(
+      geometry.coordinates,
+      variant.stops.map((s) => s.stop),
+    );
+    stopIndexCache.set(state.routeVariantId, stopIndex);
+  }
+
+  const eta = computeNextStopEtaFromIndex(
     geometry.coordinates,
-    variant.stops.map((s) => s.stop),
+    stopIndex,
     state.latitude,
     state.longitude,
     state.speedMps !== null ? [state.speedMps] : [],

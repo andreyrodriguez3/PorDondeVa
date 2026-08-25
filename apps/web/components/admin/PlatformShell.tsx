@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { clearSession, useRequireAdminAuth } from '@/lib/adminAuth';
 import { Button } from '@/components/ui/Button';
@@ -17,11 +17,13 @@ export function PlatformShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const user = useRequireAdminAuth();
 
-  if (!user) return null;
-  if (user.role !== 'SUPER_ADMIN') {
-    router.replace('/live');
-    return null;
-  }
+  // Navigating during render is a React anti-pattern — an effect guarantees the redirect
+  // actually fires instead of possibly being dropped on a re-render.
+  useEffect(() => {
+    if (user && user.role !== 'SUPER_ADMIN') router.replace('/live');
+  }, [user, router]);
+
+  if (!user || user.role !== 'SUPER_ADMIN') return null;
 
   return (
     <ToastProvider>

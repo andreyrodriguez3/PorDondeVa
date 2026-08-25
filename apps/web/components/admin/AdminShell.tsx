@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useRequireAdminAuth } from '@/lib/adminAuth';
 import { useRouter } from 'next/navigation';
@@ -13,15 +13,17 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const user = useRequireAdminAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const reduced = useReducedMotion();
-  if (!user) return null;
 
   // SUPER_ADMIN is a platform-level account (D-A7 in ROADMAP.md) — it cannot read a
   // company's operational data, so every screen here would 403. It manages companies
-  // from its own section instead (A20).
-  if (user.role === 'SUPER_ADMIN') {
-    router.replace('/platform');
-    return null;
-  }
+  // from its own section instead (A20). Navigating during render (rather than an
+  // effect) is a React anti-pattern — it can be dropped on a re-render before the
+  // browser ever sees it.
+  useEffect(() => {
+    if (user?.role === 'SUPER_ADMIN') router.replace('/platform');
+  }, [user, router]);
+
+  if (!user || user.role === 'SUPER_ADMIN') return null;
 
   return (
     <ToastProvider>

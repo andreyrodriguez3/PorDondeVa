@@ -31,7 +31,10 @@ export class AuthService {
   ) {}
 
   async loginWithEmail(email: string, password: string): Promise<LoginResponse> {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { company: { select: { status: true } } },
+    });
     return this.completeLogin(user, password);
   }
 
@@ -41,10 +44,16 @@ export class AuthService {
     password: string,
   ): Promise<LoginResponse> {
     const company = await this.prisma.company.findUnique({ where: { slug: companyCode } });
-    if (!company) throw new UnauthorizedException('Invalid credentials.');
+    // Suspended companies are indistinguishable from nonexistent ones here — same
+    // generic message either way, so a company code can't be used to probe which
+    // companies exist versus which have been suspended.
+    if (!company || company.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Invalid credentials.');
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { companyId_username: { companyId: company.id, username } },
+      include: { company: { select: { status: true } } },
     });
     return this.completeLogin(user, password);
   }
@@ -69,8 +78,11 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token has expired.');
     }
 
-    const user = await this.prisma.user.findUnique({ where: { id: stored.userId } });
-    if (!user || user.status !== 'ACTIVE') {
+    const user = await this.prisma.user.findUnique({
+      where: { id: stored.userId },
+      include: { company: { select: { status: true } } },
+    });
+    if (!user || user.status !== 'ACTIVE' || (user.company && user.company.status !== 'ACTIVE')) {
       throw new UnauthorizedException('Account is disabled.');
     }
 
@@ -115,6 +127,7 @@ export class AuthService {
       status: string;
       failedLoginAttempts: number;
       lockedUntil: Date | null;
+      company: { status: string } | null;
     } | null,
     password: string,
   ): Promise<LoginResponse> {
@@ -123,6 +136,15 @@ export class AuthService {
     // below returns the same generic message so probing a list of candidate emails
     // can't be used to enumerate real accounts.
     if (!user) throw new UnauthorizedException('Invalid credentials.');
+
+    // SUPER_ADMIN has no company (companyId/company null) and is exempt — a suspended
+    // company can't lock out the platform account that would need to reactivate it.
+    // Checked before the password is even verified: a suspended company's staff
+    // shouldn't be able to burn their own lockout counter probing a password that
+    // wouldn't get them in anyway.
+    if (user.company && user.company.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Invalid credentials.');
+    }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       throw new UnauthorizedException('Invalid credentials.');

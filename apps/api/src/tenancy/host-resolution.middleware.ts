@@ -30,10 +30,12 @@ export class HostResolutionMiddleware implements NestMiddleware {
 
     const domain = await this.prisma.companyDomain.findUnique({
       where: { hostname },
-      select: { companyId: true, verifiedAt: true },
+      select: { companyId: true, verifiedAt: true, company: { select: { status: true } } },
     });
 
-    if (!domain || !domain.verifiedAt) {
+    // A suspended company's passenger site 404s exactly like an unverified/unknown
+    // domain — "suspended" isn't a distinct state a passenger should be able to detect.
+    if (!domain || !domain.verifiedAt || domain.company.status !== 'ACTIVE') {
       throw new NotFoundException();
     }
 

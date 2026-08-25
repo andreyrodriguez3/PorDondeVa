@@ -4,6 +4,7 @@ import type { PublicApproachingBus, PublicStopRoute } from '@tubus/contracts';
 import { useStopLive } from '@/lib/useStopLive';
 import { copy } from '@/lib/copy';
 import { ConnectionBanner } from './ConnectionBanner';
+import { LiveStatusBadge } from './LiveStatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 function BusMiniIcon() {
@@ -21,7 +22,11 @@ function BusMiniIcon() {
 }
 
 function ApproachingBusRow({ bus }: { bus: PublicApproachingBus }) {
-  const minutes = bus.etaSeconds !== null ? Math.round(bus.etaSeconds / 60) : null;
+  // Same rule as RouteLiveView's EtaLabel (D19) — an ETA computed from a stale or
+  // offline fix is more likely to mislead than help, and on this screen the ETA *is*
+  // the content, so a stale bus needs its status called out, not silently omitted.
+  const isLive = bus.state === 'LIVE';
+  const minutes = isLive && bus.etaSeconds !== null ? Math.round(bus.etaSeconds / 60) : null;
   const etaLabel =
     minutes === null ? null : minutes < 1 ? copy.etaArriving : copy.etaMinutes(minutes);
 
@@ -33,7 +38,11 @@ function ApproachingBusRow({ bus }: { bus: PublicApproachingBus }) {
           {bus.routeName} · {bus.headsign}
         </p>
       </div>
-      {etaLabel ? <span className="text-title font-semibold text-brand">{etaLabel}</span> : null}
+      {etaLabel ? (
+        <span className="text-title font-semibold text-brand">{etaLabel}</span>
+      ) : (
+        <LiveStatusBadge bus={bus} />
+      )}
     </li>
   );
 }

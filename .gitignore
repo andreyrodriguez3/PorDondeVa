@@ -46,3 +46,6 @@ playwright/.cache/
 .DS_Store
 Thumbs.db
 
+# unrelated scratch repo living in the working tree, has its own .git
+swot/
+

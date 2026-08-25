@@ -398,6 +398,7 @@ model TripIncident {
   trip       Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
   reportedBy User    @relation(fields: [reportedByUserId], references: [id], onDelete: Cascade)
 
+  @@index([companyId, tripId])
   @@map("trip_incidents")
 }
 

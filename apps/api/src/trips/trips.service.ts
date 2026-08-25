@@ -196,6 +196,9 @@ export class TripsService {
       where: { companyId, id: tripId, driverUserId },
     });
     if (!trip) throw new NotFoundException();
+    if (trip.status !== 'ACTIVE') {
+      throw new ConflictException('Trip is not active.');
+    }
 
     const incident = await this.prisma.scoped.tripIncident.create({
       data: {

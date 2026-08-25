@@ -9,7 +9,11 @@ import type {
 } from '@tubus/contracts';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { computeLiveState } from '../common/live-status';
-import { computeNextStopEta } from '../common/route-eta';
+import {
+  buildStopDistanceIndex,
+  computeNextStopEtaFromIndex,
+  type StopDistanceEntry,
+} from '../common/route-eta';
 
 // `departureTime` is a Postgres `time` column (no zone) — node-postgres represents it as a
 // Date on the 1970-01-01 epoch with the stored hour/minute in UTC fields, regardless of the
@@ -142,9 +146,9 @@ export class PublicService {
   }
 
   /**
-   * Every currently active bus whose next unreached stop (computeNextStopEta, shared
-   * with the live-ingest broadcast path) is this one — across every route/variant that
-   * serves it, not just one.
+   * Every currently active bus whose next unreached stop (route-eta.ts, shared with the
+   * live-ingest broadcast path) is this one — across every route/variant that serves it,
+   * not just one.
    */
   async getStopLive(companyId: string, stopId: string): Promise<PublicStopLive> {
     const stop = await this.prisma.scoped.stop.findFirst({ where: { companyId, id: stopId } });
@@ -178,12 +182,24 @@ export class PublicService {
 
     const now = new Date();
     const approaching: PublicApproachingBus[] = [];
+    // Every stop's distance-along-the-line is the same for every bus running this
+    // variant in this request — build it once per variant, not once per bus.
+    const stopIndexCache = new Map<string, StopDistanceEntry[]>();
 
     for (const state of states) {
       const geometry = state.variant.geometry as unknown as { coordinates: [number, number][] };
-      const eta = computeNextStopEta(
+      let stopIndex = stopIndexCache.get(state.routeVariantId);
+      if (!stopIndex) {
+        stopIndex = buildStopDistanceIndex(
+          geometry.coordinates,
+          state.variant.stops.map((s) => s.stop),
+        );
+        stopIndexCache.set(state.routeVariantId, stopIndex);
+      }
+
+      const eta = computeNextStopEtaFromIndex(
         geometry.coordinates,
-        state.variant.stops.map((s) => s.stop),
+        stopIndex,
         state.latitude,
         state.longitude,
         state.speedMps !== null ? [state.speedMps] : [],
